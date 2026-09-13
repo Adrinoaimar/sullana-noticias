@@ -6,7 +6,7 @@ MVP editorial mobile-first para descubrir publicaciones públicas, convertir hal
 
 - Web pública, panel editorial, SQLite persistente, RSS, sitemap, robots.txt, metadata OpenGraph y `NewsArticle`.
 - Pipeline: fuente pública → ingesta → deduplicación → relevancia local → borrador → revisión → publicación.
-- `FacebookSourceAdapter` encapsula `kevinzg/facebook-scraper`.
+- `PlaywrightFacebookSourceAdapter` encapsula la captura pública de Facebook; `kevinzg/facebook-scraper` queda como validación histórica, no como método principal.
 - Autopublicación global desactivada. Posts sensibles quedan en `VERIFY`.
 - Fuentes de ejemplo entran pausadas (`enabled = 0`) hasta revisión editorial.
 - El fixture de demo no es una noticia real. Ejecutar `SEED_DEMO_ARTICLE=0 npm run seed` antes de un lanzamiento real.
@@ -44,15 +44,15 @@ python3 -m venv .venv
 pip install -r services/facebook-ingestor/requirements.txt
 ```
 
-El adaptador usa exclusivamente páginas públicas sin credenciales, cookies, grupos privados ni perfiles restringidos. El servidor requiere que una fuente esté activa antes de revisarla. Cada fuente conserva `last_checked_at`, `last_success_at` y los errores de la ejecución.
+El adaptador usa Playwright sobre páginas públicas, sin login automatizado, CAPTCHA, grupos privados ni evasión de controles. El servidor requiere que una fuente esté activa antes de revisarla. Cada fuente conserva `last_checked_at`, `last_success_at` y los errores de la ejecución. Si una página falla después de los reintentos, el Worker la pausa para revisión y continúa con las demás.
 
-El proveedor upstream está fijado conceptualmente al repositorio `kevinzg/facebook-scraper`; la evaluación del 13/09/2026 encontró que la rama `master` instala tras añadir `lxml_html_clean`, pero no devuelve posts públicos legibles en tres páginas actuales probadas sin login. El sistema registra ese resultado como error observable y no fabrica posts.
+La prueba histórica de `kevinzg/facebook-scraper` queda documentada, pero la captura principal ahora es `PlaywrightFacebookSourceAdapter`, inspirada en [playwright-Facebook-scraper](https://github.com/Lencho123/playwright-Facebook-scraper). En pruebas públicas con navegador, las tres páginas iniciales de Sullana expusieron artículos visibles; el adapter conserva texto, fecha/etiqueta, fuente y URL canónica, sin copiar contenido adicional ni inventar campos.
 
-### Ruta autorizada de Meta Graph API (opt-in)
+### Ruta Meta Graph API (futuro)
 
-Cuando Meta haya autorizado el acceso de la aplicación a las Pages objetivo, el scheduler puede usar la ruta oficial configurando el secreto `META_PAGE_ACCESS_TOKEN` en GitHub Actions. El adapter cambia a `/{page-id}/posts`, conserva solo `message`, `created_time`, `permalink_url` e imagen devueltos por Meta y nunca imprime el token. `META_GRAPH_API_VERSION` está fijada en `v26.0` en el workflow y puede cambiarse de forma explícita cuando Meta retire esa versión. Sin ese secreto, se mantiene la prueba pública de `facebook-scraper`; no hay fallback silencioso ni login.
+`META_GRAPH = PENDING_EXTERNAL`. No es requisito del scheduler ni bloquea Playwright. Si se habilita en el futuro, deberá entrar como proveedor secundario y permanecer detrás de una autorización Meta válida.
 
-La ruta requiere permisos o producto de Meta compatibles con lectura de contenido de Pages; un token ausente, inválido o sin acceso deja el run en `ERROR`. El token se envía como cabecera Bearer y nunca se registra en URL/log. No se activa con un token inventado ni se sube ningún secreto al repositorio.
+Si Facebook exige una sesión para una fuente concreta, el workflow acepta opcionalmente `FACEBOOK_STORAGE_STATE_B64` como secreto de GitHub Actions. El storage state no se escribe en Git ni se genera mediante login automatizado.
 
 ## Flujo editorial
 
@@ -90,7 +90,7 @@ Para el despliegue Worker/D1:
 npm run site:validate
 ```
 
-Configurar en Sites/Cloudflare los secretos `ADMIN_PASSWORD` e `INGEST_TOKEN`. El ingestor Python debe ejecutar `FacebookSourceAdapter` en un runner persistente/cron y enviar solo JSON normalizado a `POST /api/ingest` con `Authorization: Bearer ...`.
+Configurar en Sites/Cloudflare los secretos `ADMIN_PASSWORD` e `INGEST_TOKEN`. El ingestor Python debe ejecutar `PlaywrightFacebookSourceAdapter` en un runner persistente/cron y enviar solo JSON normalizado a `POST /api/ingest` con `Authorization: Bearer ...`.
 
 El servidor Node/SQLite local requiere además un proceso persistente y almacenamiento durable. Antes de usar cualquiera de los dos entornos:
 

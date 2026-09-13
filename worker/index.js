@@ -149,7 +149,10 @@ async function persistIngest(env, payload) {
   const started = now();
   const run = await dbRun(db, 'INSERT INTO scrape_runs (run_id,started_at,sources_checked,status) VALUES (?,?,?,?)', runId, started, sources.length, 'RUNNING');
   const insert = 'INSERT OR IGNORE INTO raw_posts (source_id,external_post_id,text,post_url,image_url,published_at,fetched_at,content_hash,processing_status,verification_status,likes,comments,shares,reactions_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)';
-  let found = 0, fresh = 0, duplicates = 0, errors = Array.isArray(payload.errors) ? payload.errors.map((error) => `${error.source || 'adapter'}: ${error.message || 'SCRAPER_ERROR'}`) : [];
+  const adapterErrors = Array.isArray(payload.errors) ? payload.errors : [];
+  const failedSourceIds = new Set(adapterErrors.map((error) => Number(error.source_id)).filter(Number.isInteger));
+  const failedSourceNames = new Set(adapterErrors.map((error) => String(error.source || '').trim()).filter(Boolean));
+  let found = 0, fresh = 0, duplicates = 0, errors = adapterErrors.map((error) => `${error.source || 'adapter'}: ${error.message || 'SCRAPER_ERROR'}`);
   for (const post of Array.isArray(payload.posts) ? payload.posts : []) {
     const source = sources.find((item) => item.id === Number(post.source_id) || item.facebook_identifier === post.page_identifier || item.facebook_url === post.source_url);
     if (!source || !post.post_url) continue;
@@ -165,7 +168,10 @@ async function persistIngest(env, payload) {
   }
   const status = errors.length && !found ? 'ERROR' : errors.length ? 'PARTIAL' : 'SUCCESS';
   await dbRun(db, 'UPDATE scrape_runs SET finished_at=?,posts_found=?,new_posts=?,duplicates=?,errors=?,status=?,error_message=? WHERE id=?', now(), found, fresh, duplicates, errors.length, status, errors.join(' | ') || null, run.meta?.last_row_id);
-  for (const source of sources) await dbRun(db, "UPDATE sources SET last_checked_at=?, last_success_at=CASE WHEN ? IN ('SUCCESS','PARTIAL') THEN ? ELSE last_success_at END WHERE id=?", now(), status, now(), source.id);
+  for (const source of sources) {
+    const failed = failedSourceIds.has(Number(source.id)) || failedSourceNames.has(String(source.name));
+    await dbRun(db, "UPDATE sources SET enabled=CASE WHEN ? THEN 0 ELSE enabled END, last_checked_at=?, last_success_at=CASE WHEN ? IN ('SUCCESS','PARTIAL') AND ?=0 THEN ? ELSE last_success_at END WHERE id=?", failed ? 1 : 0, now(), status, failed ? 1 : 0, now(), source.id);
+  }
   return { run_id: runId, status, posts_found: found, new_posts: fresh, duplicates, errors };
 }
 
@@ -180,7 +186,7 @@ export default {
     const url = new URL(request.url);
     try {
       if (env.DB) ctx.waitUntil(seed(env.DB).catch((error) => console.error('seed', error)));
-      if (url.pathname === '/api/health') return json({ web: 'OK', database: env.DB ? 'OK' : 'MISSING', scraper: env.INGEST_TOKEN ? 'EXTERNAL_ADAPTER' : 'NOT_CONFIGURED' });
+      if (url.pathname === '/api/health') return json({ web: 'OK', database: env.DB ? 'OK' : 'MISSING', scraper: env.INGEST_TOKEN ? 'PLAYWRIGHT_ADAPTER' : 'NOT_CONFIGURED', meta_graph: 'PENDING_EXTERNAL' });
       if (url.pathname === '/api/auth/login' && request.method === 'POST') {
         const body = await bodyJson(request);
         if (!env.ADMIN_PASSWORD) return json({ error: 'ADMIN_PASSWORD_NOT_CONFIGURED' }, 503);
@@ -200,7 +206,7 @@ export default {
         if (url.pathname === '/api/admin/sources' && request.method === 'GET') return json(await dbRows(env.DB,'SELECT * FROM sources ORDER BY created_at DESC'));
         if (url.pathname === '/api/admin/raw-posts' && request.method === 'GET') return json(await dbRows(env.DB,'SELECT r.*,s.name AS source_name FROM raw_posts r JOIN sources s ON s.id=r.source_id ORDER BY r.fetched_at DESC LIMIT 100'));
         if (url.pathname === '/api/admin/drafts' && request.method === 'GET') return json(await dbRows(env.DB,'SELECT d.*,c.name AS category_name FROM news_drafts d LEFT JOIN categories c ON c.id=d.category_id ORDER BY d.updated_at DESC'));
-        if (url.pathname === '/api/admin/ingest' && request.method === 'POST') return json({error:'SCRAPER_EXTERNAL_REQUIRED',message:'El Worker no ejecuta Python; ejecuta el FacebookSourceAdapter externo y publica el payload firmado en /api/ingest.'},503);
+        if (url.pathname === '/api/admin/ingest' && request.method === 'POST') return json({error:'SCRAPER_EXTERNAL_REQUIRED',message:'El Worker no ejecuta Python; ejecuta el PlaywrightFacebookSourceAdapter externo y publica el payload firmado en /api/ingest.'},503);
         const source = url.pathname.match(/^\/api\/admin\/sources\/(\d+)$/);
         if (source && request.method === 'PATCH') { const body=await bodyJson(request); await dbRun(env.DB,'UPDATE sources SET enabled=COALESCE(?,enabled),trust_level=COALESCE(?,trust_level),auto_draft=COALESCE(?,auto_draft),auto_publish=0 WHERE id=?',body.enabled===undefined?null:(body.enabled?1:0),body.trust_level||null,body.auto_draft===undefined?null:(body.auto_draft?1:0),Number(source[1])); return json(await dbFirst(env.DB,'SELECT * FROM sources WHERE id=?',Number(source[1]))); }
         const rawDraft = url.pathname.match(/^\/api\/admin\/raw-posts\/(\d+)\/draft$/);

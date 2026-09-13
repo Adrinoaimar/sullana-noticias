@@ -257,7 +257,7 @@ async function handle(req, res) {
   const url = new URL(req.url, SITE_URL);
   const pathname = decodeURIComponent(url.pathname);
   try {
-    if (pathname === '/api/health') return sendJson(res, 200, { web: 'OK', database: 'OK', scraper: fs.existsSync(path.join(ROOT, 'services/facebook-ingestor', 'run.py')) ? 'READY' : 'MISSING', last_scrape: db.prepare('SELECT started_at, status FROM scrape_runs ORDER BY started_at DESC LIMIT 1').get() || null });
+    if (pathname === '/api/health') return sendJson(res, 200, { web: 'OK', database: 'OK', scraper: fs.existsSync(path.join(ROOT, 'services/facebook-ingestor', 'playwright_adapter.py')) ? 'PLAYWRIGHT_ADAPTER' : 'MISSING', meta_graph: 'PENDING_EXTERNAL', last_scrape: db.prepare('SELECT started_at, status FROM scrape_runs ORDER BY started_at DESC LIMIT 1').get() || null });
     if (pathname === '/api/auth/login' && req.method === 'POST') {
       const body = await readBody(req);
       const configured = process.env.ADMIN_PASSWORD;

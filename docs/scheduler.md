@@ -19,4 +19,4 @@ Controles incluidos:
 
 GitHub Actions puede servir para CI o para llamar un worker externo, pero no debe ser la base de persistencia de SQLite: cada runner es efímero. Si se elige D1/PostgreSQL, sustituir la capa de `src/db.js` y conservar el contrato del adaptador.
 
-El repositorio incluye `.github/workflows/ingest.yml` para el Worker/D1. Requiere los secretos `SULLANA_INGEST_URL` (por ejemplo, `https://<site>/api/ingest`) y `SULLANA_INGEST_TOKEN`; el runner no guarda SQLite ni credenciales en archivos.
+El repositorio incluye `.github/workflows/ingest.yml` para el Worker/D1. Instala Chromium para `PlaywrightFacebookSourceAdapter` y requiere los secretos `SULLANA_INGEST_URL` (por ejemplo, `https://<site>/api/ingest`) y `SULLANA_INGEST_TOKEN`. `FACEBOOK_STORAGE_STATE_B64` es opcional y debe contener únicamente un storage state autorizado; el runner no guarda SQLite ni credenciales en archivos. Si una fuente falla tras los reintentos, el Worker registra el error y la pausa para revisión; las demás continúan.

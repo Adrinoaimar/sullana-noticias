@@ -43,18 +43,14 @@ Cada llamada a `get_posts(..., page_limit=3, options={"allow_extra_requests": Fa
 
 Reejecución integrada del 13/09/2026 (`npm run ingest`, tres fuentes activas, `page_limit=3`, `retries=1`, intervalo entre fuentes `0` solo para acelerar la prueba): `posts_found=0`, `new_posts=0`, `duplicates=0`, estado `ERROR`. Los tres errores quedaron persistidos en `scrape_runs`; en operación normal se conserva intervalo configurable y backoff exponencial.
 
-## Decisión
+## Decisión actual
 
-`FacebookSourceAdapter` permanece como frontera estable. No se reconstruye todo el portal ni se intenta eludir controles de Facebook. La producción puede activar una fuente cuando el proveedor entregue posts públicos legibles o cuando se autorice una implementación compatible adicional para esa capa.
+`kevinzg/facebook-scraper` queda como validación histórica y no como método principal. La frontera estable ahora es `PlaywrightFacebookSourceAdapter`, que conserva el contrato existente (`text`, `published_at`, `source_url`, `post_url`, `post_id`) y deja intactos D1, deduplicación, clasificación, borradores, panel y publicación.
 
-## Ruta oficial adicional
+La prueba pública con Playwright y navegador sin sesión encontró artículos visibles en las tres fuentes iniciales:
 
-La investigación de producción confirmó que el Graph API de Meta no es una vía pública anónima: la lectura de posts de una Page requiere el acceso de la aplicación correspondiente (por ejemplo, Page Public Content Access/Metadata Access o permisos de Pages). Por eso se añadió una ruta opt-in dentro del mismo adapter:
+- Turismo Sullana MPS: artículo visible con fecha absoluta y permalink de Page.
+- Municipalidad Bellavista Oficial: artículo visible con etiqueta relativa `1d` y permalink de Page.
+- Municipalidad Distrital de Marcavelica: artículo visible con etiqueta relativa `1d` y permalink de Page.
 
-- `META_PAGE_ACCESS_TOKEN` solo se lee desde el entorno secreto del scheduler.
-- `META_GRAPH_API_VERSION` se fija en el workflow (`v26.0`) y no se obtiene dinámicamente.
-- El token viaja en `Authorization: Bearer`, nunca en la URL ni en mensajes de error.
-- La respuesta se normaliza sin copiar campos no necesarios y los errores omiten la URL que contiene el token.
-- Sin token, el comportamiento probado de `kevinzg/facebook-scraper` permanece intacto.
-
-Fuentes técnicas revisadas: [referencia Page de Meta](https://developers.facebook.com/docs/graph-api/reference/page/) y [referencia histórica de Page Feed](https://developers.facebook.com/docs/graph-api/reference/page/feed/). La decisión de no evadir login/JavaScript también queda respaldada por los problemas upstream [#1130](https://github.com/kevinzg/facebook-scraper/issues/1130), [#1120](https://github.com/kevinzg/facebook-scraper/issues/1120) y [#1119](https://github.com/kevinzg/facebook-scraper/issues/1119).
+El adapter no automatiza login ni evade CAPTCHA, bloqueos o controles. Si una sesión autorizada fuera necesaria, solo acepta `FACEBOOK_STORAGE_STATE_B64` como secreto del runner. Meta Graph permanece `PENDING_EXTERNAL` y no bloquea Playwright. Referencia técnica: [playwright-Facebook-scraper](https://github.com/Lencho123/playwright-Facebook-scraper).
