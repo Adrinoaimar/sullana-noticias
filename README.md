@@ -11,7 +11,8 @@ MVP editorial mobile-first para descubrir publicaciones públicas, convertir hal
 - Fuentes de ejemplo entran pausadas (`enabled = 0`) hasta revisión editorial.
 - El fixture de demo no es una noticia real. Ejecutar `SEED_DEMO_ARTICLE=0 npm run seed` antes de un lanzamiento real.
 - Analytics y slots de monetización están opt-in: sin IDs/configuración real permanecen inactivos.
-- Producción completa sigue pendiente de un runtime con Node + volumen durable y de una fuente Facebook que entregue posts públicos legibles.
+- El Worker ESM de producción (`worker/index.js`) sirve la web y persiste en D1; el servidor Node/SQLite queda como referencia local.
+- La ingesta Python se mantiene fuera del Worker y entrega payloads firmados a `/api/ingest`; sin posts públicos legibles el pipeline no fabrica borradores.
 
 ## Arranque local
 
@@ -77,7 +78,15 @@ POST /api/admin/drafts/:id/publish
 
 ## Producción
 
-La app necesita un proceso Node persistente y almacenamiento durable para SQLite. Antes de desplegar:
+Para el despliegue Worker/D1:
+
+```bash
+npm run site:validate
+```
+
+Configurar en Sites/Cloudflare los secretos `ADMIN_PASSWORD` e `INGEST_TOKEN`. El ingestor Python debe ejecutar `FacebookSourceAdapter` en un runner persistente/cron y enviar solo JSON normalizado a `POST /api/ingest` con `Authorization: Bearer ...`.
+
+El servidor Node/SQLite local requiere además un proceso persistente y almacenamiento durable. Antes de usar cualquiera de los dos entornos:
 
 1. Crear `ADMIN_PASSWORD` como secreto del proveedor.
 2. Configurar `SITE_URL` con dominio real y `NODE_ENV=production`.
