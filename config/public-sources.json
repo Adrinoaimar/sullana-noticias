@@ -16,5 +16,17 @@
     "name": "Municipalidad Distrital de Marcavelica",
     "facebook_url": "https://www.facebook.com/munimarcavelica",
     "facebook_identifier": "munimarcavelica"
+  },
+  {
+    "id": 4,
+    "name": "Municipalidad Distrital de Querecotillo",
+    "facebook_url": "https://www.facebook.com/MuniQuerecotillo",
+    "facebook_identifier": "MuniQuerecotillo"
+  },
+  {
+    "id": 5,
+    "name": "Municipalidad Distrital de Ignacio Escudero",
+    "facebook_url": "https://www.facebook.com/m.d.ignacio.escudero",
+    "facebook_identifier": "m.d.ignacio.escudero"
   }
 ]

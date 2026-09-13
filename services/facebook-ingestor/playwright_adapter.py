@@ -55,8 +55,8 @@ _EN_MONTHS = {
     "november": 11,
     "december": 12,
 }
-_RELATIVE_DATE = re.compile(r"^(?:just now|ahora|\d+\s*(?:s|sec|min|m|h|hr|hrs|d|day|days|w|week|weeks|mo|month|months|m|día|días|semana|semanas))$", re.I)
-_POST_PATH = re.compile(r"/(?:posts|permalink\.php)(?:/|$)", re.I)
+_RELATIVE_DATE = re.compile(r"^(?:just now|ahora|today|yesterday|hoy|ayer|\d+\s*(?:s|sec|min|m|h|hr|hrs|d|day|days|w|week|weeks|mo|month|months|m|día|días|semana|semanas))(?:\s+at\s+\d{1,2}:\d{2}\s*(?:am|pm)?)?$", re.I)
+_POST_PATH = re.compile(r"/(?:posts|reel|permalink\.php)(?:/|$)", re.I)
 _STOP_LINES = {
     "all reactions:",
     "like",
@@ -89,7 +89,7 @@ def _post_id(value: str) -> str | None:
     parsed = urlsplit(value)
     parts = [part for part in parsed.path.split("/") if part]
     for index, part in enumerate(parts[:-1]):
-        if part.lower() == "posts":
+        if part.lower() in {"posts", "reel"}:
             return parts[index + 1]
     query = parse_qs(parsed.query)
     return next((query[key][0] for key in ("story_fbid", "fbid", "id") if query.get(key)), None)
