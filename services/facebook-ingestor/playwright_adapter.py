@@ -55,7 +55,12 @@ _EN_MONTHS = {
     "november": 11,
     "december": 12,
 }
-_RELATIVE_DATE = re.compile(r"^(?:just now|ahora|today|yesterday|hoy|ayer|\d+\s*(?:s|sec|min|m|h|hr|hrs|d|day|days|w|week|weeks|mo|month|months|m|día|días|semana|semanas))(?:\s+at\s+\d{1,2}:\d{2}\s*(?:am|pm)?)?$", re.I)
+_RELATIVE_DATE = re.compile(
+    r"^(?:just now|ahora|today|yesterday|hoy|ayer|\d+\s*"
+    r"(?:s|sec|min|m|h|hr|hrs|d|day|days|w|week|weeks|mo|month|months|m|día|días|semana|semanas))"
+    r"(?:\s+(?:at|a las)\s+\d{1,2}:\d{2}\s*(?:am|pm)?)?$",
+    re.I,
+)
 _POST_PATH = re.compile(r"/(?:posts|reel|permalink\.php)(?:/|$)", re.I)
 _STOP_LINES = {
     "all reactions:",
@@ -207,7 +212,8 @@ class PlaywrightFacebookSourceAdapter:
                 continue
             absolute = urljoin("https://www.facebook.com/", href)
             parsed = urlsplit(absolute)
-            if _POST_PATH.search(parsed.path) and identifier.lower() in parsed.path.lower():
+            is_reel = re.search(r"/reel(?:/|$)", parsed.path, re.I)
+            if _POST_PATH.search(parsed.path) and (identifier.lower() in parsed.path.lower() or is_reel):
                 canonical = _canonical_post_url(absolute)
                 if canonical:
                     candidates.append(canonical)
@@ -215,12 +221,14 @@ class PlaywrightFacebookSourceAdapter:
 
     def _extract_article(self, article: Any, source: dict[str, Any], identifier: str) -> dict[str, Any] | None:
         try:
-            try:
-                more = article.get_by_text("See more", exact=True).first
-                if more.count():
-                    more.click(timeout=1000)
-            except Exception:
-                pass
+            for label in ("See more", "Ver más"):
+                try:
+                    more = article.get_by_text(label, exact=True).first
+                    if more.count():
+                        more.click(timeout=1000)
+                        break
+                except Exception:
+                    continue
             permalink = self._permalink(article, identifier)
             if not permalink:
                 return None
@@ -265,6 +273,15 @@ class PlaywrightFacebookSourceAdapter:
             try:
                 page.goto(page_url, wait_until="domcontentloaded", timeout=self.timeout * 1000)
                 page.wait_for_timeout(2500)
+                # Facebook may place a public login prompt above the feed.
+                # Dismiss only the visible close control; never submit credentials.
+                try:
+                    close_prompt = page.get_by_role("button", name="Cerrar", exact=True).first
+                    if close_prompt.count():
+                        close_prompt.click(timeout=1000)
+                        page.wait_for_timeout(500)
+                except Exception:
+                    pass
                 for _ in range(self.scroll_limit):
                     page.mouse.wheel(0, 2200)
                     page.wait_for_timeout(1500)
