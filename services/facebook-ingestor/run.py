@@ -11,6 +11,7 @@ import json
 import os
 import re
 import sys
+import time
 from datetime import datetime
 from typing import Any, Iterable
 
@@ -87,16 +88,30 @@ class FacebookSourceAdapter:
 def main() -> int:
     request = json.load(sys.stdin)
     adapter = FacebookSourceAdapter(request.get("page_limit", 3), request.get("timeout", 25))
+    retries = max(0, min(int(request.get("retries", os.getenv("SCRAPER_RETRIES", "2"))), 4))
+    min_interval = max(0, min(int(request.get("min_interval", os.getenv("SCRAPER_MIN_INTERVAL_SECONDS", "30"))), 300))
     all_posts: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
-    for source in request.get("sources", []):
-        try:
-            posts = adapter.fetch(source)
-            all_posts.extend(posts)
-            if not posts:
-                errors.append({"source": source.get("name", "unknown"), "message": "No public posts parsed; Facebook may require JS/login or the page may have no readable public posts."})
-        except Exception as exc:  # a source cannot take down another source
-            errors.append({"source": source.get("name", "unknown"), "message": str(exc)})
+    for index, source in enumerate(request.get("sources", [])):
+        if index and min_interval:
+            time.sleep(min_interval)
+        last_error: Exception | None = None
+        posts: list[dict[str, Any]] = []
+        for attempt in range(retries + 1):
+            try:
+                posts = adapter.fetch(source)
+                last_error = None
+                break
+            except Exception as exc:  # a source cannot take down another source
+                last_error = exc
+                if attempt < retries:
+                    time.sleep(min(60, 2 ** attempt))
+        if last_error is not None:
+            errors.append({"source": source.get("name", "unknown"), "message": f"after {retries + 1} attempts: {last_error}"})
+            continue
+        all_posts.extend(posts)
+        if not posts:
+            errors.append({"source": source.get("name", "unknown"), "message": "No public posts parsed; Facebook may require JS/login or the page may have no readable public posts."})
     json.dump({"posts": all_posts, "errors": errors}, sys.stdout, ensure_ascii=False)
     return 0
 

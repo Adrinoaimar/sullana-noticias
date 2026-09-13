@@ -22,7 +22,7 @@ if (!sources.length) {
 } else {
   const runId = crypto.randomUUID();
   const run = db.prepare('INSERT INTO scrape_runs (run_id, started_at, sources_checked, status) VALUES (?, ?, ?, ?)').run(runId, now(), sources.length, 'RUNNING');
-  const result = spawnSync('python3', ['services/facebook-ingestor/run.py'], { input: JSON.stringify({ sources, page_limit: Number(process.env.FACEBOOK_PAGE_LIMIT || 3), timeout: Number(process.env.SCRAPER_TIMEOUT_SECONDS || 25) }), encoding: 'utf8', env: process.env });
+  const result = spawnSync('python3', ['services/facebook-ingestor/run.py'], { input: JSON.stringify({ sources, page_limit: Number(process.env.FACEBOOK_PAGE_LIMIT || 3), timeout: Number(process.env.SCRAPER_TIMEOUT_SECONDS || 25), retries: Number(process.env.SCRAPER_RETRIES || 2), min_interval: Number(process.env.SCRAPER_MIN_INTERVAL_SECONDS || 30) }), encoding: 'utf8', env: process.env });
   let payload = {};
   try { payload = JSON.parse(result.stdout || '{}'); } catch { payload = { errors: [{ source: 'runner', message: result.stderr || 'Invalid JSON' }] }; }
   const posts = payload.posts || [];

@@ -10,6 +10,8 @@ Controles incluidos:
 
 - máximo configurable de páginas (`FACEBOOK_PAGE_LIMIT`, por defecto 3);
 - timeout por fuente;
+- reintentos configurables (`SCRAPER_RETRIES`) con backoff exponencial;
+- intervalo mínimo entre fuentes (`SCRAPER_MIN_INTERVAL_SECONDS`);
 - una fuente no detiene a las demás;
 - deduplicación por `source_id + external_post_id` y `content_hash`;
 - `scrape_runs` conserva resultado y errores;

@@ -13,6 +13,9 @@ const PORT = Number(process.env.PORT || 8787);
 const db = openDatabase();
 insertBaseCategories(db);
 const sessions = new Map();
+const GA4_MEASUREMENT_ID = String(process.env.GA4_MEASUREMENT_ID || '').replace(/[^A-Za-z0-9_-]/g, '');
+const AD_NETWORK = String(process.env.AD_NETWORK || '').trim().toLowerCase();
+const AD_ZONE_ID = String(process.env.AD_ZONE_ID || '').replace(/[^A-Za-z0-9_-]/g, '');
 
 const localTerms = ['sullana', 'bellavista', 'marcavelica', 'querecotillo', 'lancones', 'miguel checa', 'salitral', 'piura', 'mallares', 'sullana'];
 const sensitiveTerms = ['accidente', 'delito', 'fallec', 'denuncia', 'emergencia', 'acusaci', 'asesin', 'muerte', 'política', 'politica'];
@@ -33,6 +36,16 @@ function formatDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.valueOf())) return 'Sin fecha confirmada';
   return new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Lima' }).format(date);
+}
+
+function analyticsHead() {
+  if (!GA4_MEASUREMENT_ID) return '';
+  return `<script async src="https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(GA4_MEASUREMENT_ID)}"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${GA4_MEASUREMENT_ID}',{anonymize_ip:true});</script>`;
+}
+
+function adSlot(position) {
+  if (!AD_NETWORK || AD_NETWORK === 'none') return '';
+  return `<aside class="ad-slot" data-ad-network="${escapeHtml(AD_NETWORK)}"${AD_ZONE_ID ? ` data-ad-zone="${escapeHtml(AD_ZONE_ID)}"` : ''} aria-label="Espacio publicitario"><span>Publicidad</span><small>${escapeHtml(position)}</small></aside>`;
 }
 
 function articleCard(article) {
@@ -60,6 +73,7 @@ function layout({ title, description, body, extraHead = '' }) {
   <meta property="og:url" content="${escapeHtml(SITE_URL)}">
   <meta name="twitter:card" content="summary">
   <link rel="stylesheet" href="/styles.css">
+  ${analyticsHead()}
   ${extraHead}
 </head>
 <body>
@@ -72,6 +86,7 @@ function layout({ title, description, body, extraHead = '' }) {
       </nav>
     </div>
   </header>
+  ${adSlot('header')}
   <main id="contenido">${body}</main>
   <footer class="site-footer"><div class="shell footer-grid"><div><div class="brand brand--footer"><span class="brand-mark">SN</span><span>Sullana<br><strong>Noticias</strong></span></div><p>Información local, contexto claro y fuentes identificables.</p></div><div><p class="footer-label">Cobertura inicial</p><p>Sullana · Bellavista · Marcavelica · Piura</p></div><div><p class="footer-label">Transparencia</p><a href="/rss.xml">RSS</a> · <a href="/sitemap.xml">Mapa del sitio</a></div></div></footer>
   <script src="/app.js" defer></script>
@@ -89,6 +104,7 @@ function renderHome() {
     <p class="hero__lede">Un medio local independiente para seguir servicios, comunidad y actualidad de la provincia.</p>
     <div class="hero__meta"><span>Actualizado ${escapeHtml(formatDate(new Date()))}</span><span class="hero__rule"></span><span>Fuentes públicas + revisión editorial</span></div>
   </section>
+  ${adSlot('home-top')}
   <section class="shell section-block" aria-labelledby="ultimas">
     <div class="section-heading"><div><span class="section-kicker">01 / Ahora</span><h2 id="ultimas">Últimas noticias</h2></div><a class="text-link" href="/categoria/actualidad">Ver todo <span aria-hidden="true">↗</span></a></div>
     ${lead ? `<div class="lead-story"><div class="lead-story__image" aria-hidden="true"><span>SN</span></div><div><div class="story-card__eyebrow">${escapeHtml(lead.category_name || 'Actualidad')} · ${escapeHtml(formatDate(lead.published_at))}</div><h3><a href="/noticias/${encodeURIComponent(lead.slug)}">${escapeHtml(lead.title)}</a></h3><p>${escapeHtml(lead.dek || lead.summary || '')}</p><a class="button button--dark" href="/noticias/${encodeURIComponent(lead.slug)}">Leer noticia</a></div></div>` : `<div class="empty-state"><strong>El primer despacho está por llegar.</strong><p>El sistema está listo para recibir fuentes públicas y pasar cada hallazgo por revisión editorial.</p></div>`}
@@ -109,7 +125,7 @@ function renderArticle(article) {
   const bodyHtml = escapeHtml(article.body || article.summary || '').replaceAll('\n', '<br>');
   const canonical = `${SITE_URL}/noticias/${article.slug}`;
   const extraHead = `<link rel="canonical" href="${escapeHtml(canonical)}"><meta property="og:type" content="article"><meta property="og:title" content="${escapeHtml(article.title)}"><meta property="og:description" content="${escapeHtml(article.meta_description || article.dek)}"><meta property="og:url" content="${escapeHtml(canonical)}"><meta property="article:published_time" content="${escapeHtml(article.published_at)}"><script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@type': 'NewsArticle', headline: article.title, description: article.meta_description || article.dek, datePublished: article.published_at, dateModified: article.modified_at, mainEntityOfPage: canonical, author: { '@type': 'Organization', name: 'Sullana Noticias' }, publisher: { '@type': 'Organization', name: 'Sullana Noticias' } })}</script>`;
-  const body = `<article class="shell article-page"><div class="article-page__crumb"><a href="/">Inicio</a> / ${escapeHtml(article.category_name || 'Actualidad')}</div><div class="article-page__eyebrow">${escapeHtml(article.category_name || 'Actualidad')} · ${escapeHtml(formatDate(article.published_at))}</div><h1>${escapeHtml(article.title)}</h1><p class="article-page__dek">${escapeHtml(article.dek || article.summary)}</p><div class="article-page__source">Fuente: <a href="${escapeHtml(article.source_url)}" rel="nofollow noopener" target="_blank">${escapeHtml(article.source_name)}</a> · <a href="${escapeHtml(article.original_post_url)}" rel="nofollow noopener" target="_blank">publicación original</a></div><div class="article-page__body">${bodyHtml}</div><div class="share-row"><strong>Compartir</strong><button data-share="whatsapp" data-url="${escapeHtml(canonical)}" data-title="${escapeHtml(article.title)}">WhatsApp</button><button data-share="facebook" data-url="${escapeHtml(canonical)}">Facebook</button><button data-share="copy" data-url="${escapeHtml(canonical)}">Copiar enlace</button></div></article>`;
+  const body = `<article class="shell article-page"><div class="article-page__crumb"><a href="/">Inicio</a> / ${escapeHtml(article.category_name || 'Actualidad')}</div><div class="article-page__eyebrow">${escapeHtml(article.category_name || 'Actualidad')} · ${escapeHtml(formatDate(article.published_at))}</div><h1>${escapeHtml(article.title)}</h1><p class="article-page__dek">${escapeHtml(article.dek || article.summary)}</p><div class="article-page__source">Fuente: <a href="${escapeHtml(article.source_url)}" rel="nofollow noopener" target="_blank">${escapeHtml(article.source_name)}</a> · <a href="${escapeHtml(article.original_post_url)}" rel="nofollow noopener" target="_blank">publicación original</a></div>${adSlot('article-body')}<div class="article-page__body">${bodyHtml}</div><div class="share-row"><strong>Compartir</strong><button data-share="whatsapp" data-url="${escapeHtml(canonical)}" data-title="${escapeHtml(article.title)}">WhatsApp</button><button data-share="facebook" data-url="${escapeHtml(canonical)}">Facebook</button><button data-share="copy" data-url="${escapeHtml(canonical)}">Copiar enlace</button></div></article>`;
   return layout({ title: article.meta_title || `${article.title} · Sullana Noticias`, description: article.meta_description || article.dek, body, extraHead });
 }
 
@@ -192,7 +208,7 @@ function startIngest() {
   const startedAt = now();
   const runResult = db.prepare('INSERT INTO scrape_runs (run_id, started_at, sources_checked, status) VALUES (?, ?, ?, ?)').run(runId, startedAt, sources.length, 'RUNNING');
   const script = path.join(ROOT, 'services', 'facebook-ingestor', 'run.py');
-  const result = spawnSync('python3', [script], { input: JSON.stringify({ sources, page_limit: Number(process.env.FACEBOOK_PAGE_LIMIT || 3), timeout: Number(process.env.SCRAPER_TIMEOUT_SECONDS || 25) }), encoding: 'utf8', timeout: 120_000, env: { ...process.env, PYTHONPATH: process.env.PYTHONPATH || '' } });
+  const result = spawnSync('python3', [script], { input: JSON.stringify({ sources, page_limit: Number(process.env.FACEBOOK_PAGE_LIMIT || 3), timeout: Number(process.env.SCRAPER_TIMEOUT_SECONDS || 25), retries: Number(process.env.SCRAPER_RETRIES || 2), min_interval: Number(process.env.SCRAPER_MIN_INTERVAL_SECONDS || 30) }), encoding: 'utf8', timeout: 120_000, env: { ...process.env, PYTHONPATH: process.env.PYTHONPATH || '' } });
   let payload = null;
   let errors = [];
   try { payload = JSON.parse(result.stdout || '{}'); } catch { errors.push(result.stderr || 'SCRAPER_INVALID_JSON'); }
@@ -266,6 +282,15 @@ async function handle(req, res) {
       recordEvent(db, 'article_view', article.id, { path: pathname });
       db.prepare('UPDATE articles SET view_count = view_count + 1 WHERE id = ?').run(article.id);
       return sendJson(res, 200, article);
+    }
+    if (pathname === '/api/events' && req.method === 'POST') {
+      const body = await readBody(req);
+      const allowed = new Set(['share_click', 'copy_link', 'whatsapp_share', 'facebook_share', 'newsletter_click', 'editor_login']);
+      const eventName = String(body.event_name || '');
+      if (!allowed.has(eventName)) return sendJson(res, 400, { error: 'EVENT_NOT_ALLOWED' });
+      const metadata = typeof body.metadata === 'object' && body.metadata ? body.metadata : {};
+      recordEvent(db, eventName, Number.isInteger(body.article_id) ? body.article_id : null, metadata);
+      return sendJson(res, 202, { ok: true });
     }
     if (pathname.startsWith('/api/admin/')) {
       if (!requireAdmin(req, res)) return;

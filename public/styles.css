@@ -46,6 +46,8 @@ h1,h2,h3 { margin:0; font-family:Newsreader, Georgia, serif; font-weight:600; le
 .button--dark:hover { background:var(--accent); color:var(--white); border-color:var(--accent); }
 .button--small { min-height:34px; padding:0 12px; background:transparent; }
 .empty-state { padding:42px; border:1px dashed #b6c2b9; color:var(--muted); }
+.ad-slot { width:min(1120px, calc(100% - 40px)); min-height:54px; margin:22px auto 0; display:flex; align-items:center; justify-content:center; gap:10px; border:1px dashed #c7d0c9; color:#85918a; font-size:11px; letter-spacing:.08em; text-transform:uppercase; }
+.ad-slot small { color:#a2ada6; font-size:10px; letter-spacing:.04em; }
 .empty-state strong { display:block; margin-bottom:8px; color:var(--ink); font-family:Newsreader,serif; font-size:27px; }
 .principles { display:grid; grid-template-columns:repeat(3,1fr); gap:30px; }
 .principles span { color:var(--accent); font-size:12px; font-weight:700; }

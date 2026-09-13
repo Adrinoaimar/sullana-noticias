@@ -10,6 +10,8 @@ MVP editorial mobile-first para descubrir publicaciones públicas, convertir hal
 - Autopublicación global desactivada. Posts sensibles quedan en `VERIFY`.
 - Fuentes de ejemplo entran pausadas (`enabled = 0`) hasta revisión editorial.
 - El fixture de demo no es una noticia real. Ejecutar `SEED_DEMO_ARTICLE=0 npm run seed` antes de un lanzamiento real.
+- Analytics y slots de monetización están opt-in: sin IDs/configuración real permanecen inactivos.
+- Producción completa sigue pendiente de un runtime con Node + volumen durable y de una fuente Facebook que entregue posts públicos legibles.
 
 ## Arranque local
 
@@ -61,6 +63,7 @@ El proveedor upstream está fijado conceptualmente al repositorio `kevinzg/faceb
 GET  /api/health
 GET  /api/articles
 GET  /api/articles/:slug
+POST /api/events
 POST /api/auth/login
 GET  /api/admin/dashboard
 GET  /api/admin/sources
@@ -82,8 +85,9 @@ La app necesita un proceso Node persistente y almacenamiento durable para SQLite
 4. Instalar `services/facebook-ingestor/requirements.txt` en worker Python.
 5. Programar una ejecución cada 20–30 minutos con límite, timeout y backoff.
 6. Activar solo fuentes revisadas; no activar `auto_publish`.
-7. Añadir GA4 o Cloudflare Web Analytics mediante consentimiento y un ID real.
-8. Configurar Adsterra/Monetag solo después de revisar sus términos vigentes y recibir sus IDs.
+7. Configurar `GA4_MEASUREMENT_ID` con un ID real y validar consentimiento/privacidad.
+8. Configurar `AD_NETWORK`/`AD_ZONE_ID`; el MVP solo reserva slots y no inyecta scripts de terceros inventados.
+9. Configurar Adsterra/Monetag solo después de revisar sus términos vigentes y recibir su snippet/IDs.
 
 No se declaran dominio, ingresos, analytics ni aprobación publicitaria sin credenciales o evidencia real.
 

@@ -1,9 +1,15 @@
 (() => {
+  const track = (eventName, metadata = {}) => {
+    if (typeof window.gtag === 'function') window.gtag('event', eventName, metadata);
+    fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_name: eventName, metadata }) }).catch(() => {});
+  };
   const buttons = document.querySelectorAll('[data-share]');
   for (const button of buttons) {
     button.addEventListener('click', async () => {
       const url = button.dataset.url;
       const title = button.dataset.title || document.title;
+      const eventName = button.dataset.share === 'copy' ? 'copy_link' : `${button.dataset.share}_share`;
+      track(eventName, { path: location.pathname });
       if (button.dataset.share === 'copy') {
         await navigator.clipboard?.writeText(url);
         button.textContent = 'Enlace copiado';
@@ -11,7 +17,6 @@
       }
       if (button.dataset.share === 'whatsapp') window.open(`https://wa.me/?text=${encodeURIComponent(`${title} ${url}`)}`, '_blank', 'noopener');
       if (button.dataset.share === 'facebook') window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank', 'noopener');
-      fetch('/api/articles/' + location.pathname.split('/').pop()).catch(() => {});
     });
   }
 
@@ -41,7 +46,7 @@
     document.querySelectorAll('[data-reject-post]').forEach((button) => button.addEventListener('click', async () => { await api(`/api/admin/raw-posts/${button.dataset.rejectPost}/reject`, { method: 'POST', body: '{}' }); await loadAdmin(); }));
     document.querySelectorAll('[data-publish-draft]').forEach((button) => button.addEventListener('click', async () => { if (!window.confirm('Confirma revisión editorial y publicación de este borrador.')) return; await api(`/api/admin/drafts/${button.dataset.publishDraft}/publish`, { method: 'POST', body: JSON.stringify({ verified: true }) }); await loadAdmin(); }));
   }
-  loginForm.addEventListener('submit', async (event) => { event.preventDefault(); error.textContent = ''; try { await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ password: new FormData(loginForm).get('password') }) }); showApp(); } catch (reason) { error.textContent = reason.message; } });
+  loginForm.addEventListener('submit', async (event) => { event.preventDefault(); error.textContent = ''; try { await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ password: new FormData(loginForm).get('password') }) }); track('editor_login'); showApp(); } catch (reason) { error.textContent = reason.message; } });
   logoutButton.addEventListener('click', async () => { await api('/api/auth/logout', { method: 'POST', body: '{}' }); location.reload(); });
   document.querySelector('#ingest-button')?.addEventListener('click', async (event) => { event.currentTarget.disabled = true; try { await api('/api/admin/ingest', { method: 'POST', body: '{}' }); await loadAdmin(); } finally { event.currentTarget.disabled = false; } });
   api('/api/admin/session').then(showApp).catch(() => {});
