@@ -46,3 +46,14 @@ Reejecución integrada del 13/09/2026 (`npm run ingest`, tres fuentes activas, `
 ## Decisión
 
 `FacebookSourceAdapter` permanece como frontera estable. No se reconstruye todo el portal ni se intenta eludir controles de Facebook. La producción puede activar una fuente cuando el proveedor entregue posts públicos legibles o cuando se autorice una implementación compatible adicional para esa capa.
+
+## Ruta oficial adicional
+
+La investigación de producción confirmó que el Graph API de Meta no es una vía pública anónima: la lectura de posts de una Page requiere el acceso de la aplicación correspondiente (por ejemplo, Page Public Content Access/Metadata Access o permisos de Pages). Por eso se añadió una ruta opt-in dentro del mismo adapter:
+
+- `META_PAGE_ACCESS_TOKEN` solo se lee desde el entorno secreto del scheduler.
+- `META_GRAPH_API_VERSION` se fija en el workflow (`v26.0`) y no se obtiene dinámicamente.
+- La respuesta se normaliza sin copiar campos no necesarios y los errores omiten la URL que contiene el token.
+- Sin token, el comportamiento probado de `kevinzg/facebook-scraper` permanece intacto.
+
+Fuentes técnicas revisadas: [referencia Page de Meta](https://developers.facebook.com/docs/graph-api/reference/page/) y [referencia histórica de Page Feed](https://developers.facebook.com/docs/graph-api/reference/page/feed/). La decisión de no evadir login/JavaScript también queda respaldada por los problemas upstream [#1130](https://github.com/kevinzg/facebook-scraper/issues/1130), [#1120](https://github.com/kevinzg/facebook-scraper/issues/1120) y [#1119](https://github.com/kevinzg/facebook-scraper/issues/1119).

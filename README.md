@@ -48,6 +48,12 @@ El adaptador usa exclusivamente páginas públicas sin credenciales, cookies, gr
 
 El proveedor upstream está fijado conceptualmente al repositorio `kevinzg/facebook-scraper`; la evaluación del 13/09/2026 encontró que la rama `master` instala tras añadir `lxml_html_clean`, pero no devuelve posts públicos legibles en tres páginas actuales probadas sin login. El sistema registra ese resultado como error observable y no fabrica posts.
 
+### Ruta autorizada de Meta Graph API (opt-in)
+
+Cuando Meta haya autorizado el acceso de la aplicación a las Pages objetivo, el scheduler puede usar la ruta oficial configurando el secreto `META_PAGE_ACCESS_TOKEN` en GitHub Actions. El adapter cambia a `/{page-id}/posts`, conserva solo `message`, `created_time`, `permalink_url` e imagen devueltos por Meta y nunca imprime el token. `META_GRAPH_API_VERSION` está fijada en `v26.0` en el workflow y puede cambiarse de forma explícita cuando Meta retire esa versión. Sin ese secreto, se mantiene la prueba pública de `facebook-scraper`; no hay fallback silencioso ni login.
+
+La ruta requiere permisos o producto de Meta compatibles con lectura de contenido de Pages; una token ausente, inválida o sin acceso deja el run en `ERROR`. No se activa con un token inventado ni se sube ningún secreto al repositorio.
+
 ## Flujo editorial
 
 1. Panel: activar una fuente verificada.
