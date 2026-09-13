@@ -52,7 +52,7 @@ El proveedor upstream está fijado conceptualmente al repositorio `kevinzg/faceb
 
 Cuando Meta haya autorizado el acceso de la aplicación a las Pages objetivo, el scheduler puede usar la ruta oficial configurando el secreto `META_PAGE_ACCESS_TOKEN` en GitHub Actions. El adapter cambia a `/{page-id}/posts`, conserva solo `message`, `created_time`, `permalink_url` e imagen devueltos por Meta y nunca imprime el token. `META_GRAPH_API_VERSION` está fijada en `v26.0` en el workflow y puede cambiarse de forma explícita cuando Meta retire esa versión. Sin ese secreto, se mantiene la prueba pública de `facebook-scraper`; no hay fallback silencioso ni login.
 
-La ruta requiere permisos o producto de Meta compatibles con lectura de contenido de Pages; una token ausente, inválida o sin acceso deja el run en `ERROR`. No se activa con un token inventado ni se sube ningún secreto al repositorio.
+La ruta requiere permisos o producto de Meta compatibles con lectura de contenido de Pages; un token ausente, inválido o sin acceso deja el run en `ERROR`. El token se envía como cabecera Bearer y nunca se registra en URL/log. No se activa con un token inventado ni se sube ningún secreto al repositorio.
 
 ## Flujo editorial
 

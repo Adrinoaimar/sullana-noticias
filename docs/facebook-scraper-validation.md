@@ -53,6 +53,7 @@ La investigación de producción confirmó que el Graph API de Meta no es una v�
 
 - `META_PAGE_ACCESS_TOKEN` solo se lee desde el entorno secreto del scheduler.
 - `META_GRAPH_API_VERSION` se fija en el workflow (`v26.0`) y no se obtiene dinámicamente.
+- El token viaja en `Authorization: Bearer`, nunca en la URL ni en mensajes de error.
 - La respuesta se normaliza sin copiar campos no necesarios y los errores omiten la URL que contiene el token.
 - Sin token, el comportamiento probado de `kevinzg/facebook-scraper` permanece intacto.
 

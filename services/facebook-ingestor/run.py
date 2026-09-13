@@ -67,14 +67,18 @@ class FacebookSourceAdapter:
         return None
 
     def _graph_get(self, path: str, params: dict[str, Any]) -> dict[str, Any]:
-        """Call Meta without putting the token in logs or exception messages."""
-        query = urlencode({key: value for key, value in params.items() if value is not None})
+        """Call Meta with the access token in an Authorization header only."""
+        request_params = dict(params)
+        token = str(request_params.pop("access_token", "") or "").strip()
+        query = urlencode({key: value for key, value in request_params.items() if value is not None})
         url = f"https://graph.facebook.com/{self.meta_graph_api_version}/{path}?{query}"
         try:
-            with urlopen(Request(url, headers={"User-Agent": "SullanaNoticiasIngest/1.0"}), timeout=self.timeout) as response:
+            headers = {"User-Agent": "SullanaNoticiasIngest/1.0"}
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+            with urlopen(Request(url, headers=headers), timeout=self.timeout) as response:
                 payload = json.loads(response.read())
         except HTTPError as exc:
-            # Do not include the URL: it contains the access token.
             detail = ""
             try:
                 body = json.loads(exc.read()).get("error", {})
