@@ -149,7 +149,7 @@ async function persistIngest(env, payload) {
   const started = now();
   const run = await dbRun(db, 'INSERT INTO scrape_runs (run_id,started_at,sources_checked,status) VALUES (?,?,?,?)', runId, started, sources.length, 'RUNNING');
   const insert = 'INSERT OR IGNORE INTO raw_posts (source_id,external_post_id,text,post_url,image_url,published_at,fetched_at,content_hash,processing_status,verification_status,likes,comments,shares,reactions_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)';
-  let found = 0, fresh = 0, duplicates = 0, errors = [];
+  let found = 0, fresh = 0, duplicates = 0, errors = Array.isArray(payload.errors) ? payload.errors.map((error) => `${error.source || 'adapter'}: ${error.message || 'SCRAPER_ERROR'}`) : [];
   for (const post of Array.isArray(payload.posts) ? payload.posts : []) {
     const source = sources.find((item) => item.id === Number(post.source_id) || item.facebook_identifier === post.page_identifier || item.facebook_url === post.source_url);
     if (!source || !post.post_url) continue;

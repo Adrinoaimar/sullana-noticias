@@ -1,0 +1,20 @@
+[
+  {
+    "id": 1,
+    "name": "Turismo Sullana MPS",
+    "facebook_url": "https://www.facebook.com/TurismoSullanaMPS/",
+    "facebook_identifier": "TurismoSullanaMPS"
+  },
+  {
+    "id": 2,
+    "name": "Municipalidad Bellavista Oficial",
+    "facebook_url": "https://www.facebook.com/MunicipalidadBellavistaOficial",
+    "facebook_identifier": "MunicipalidadBellavistaOficial"
+  },
+  {
+    "id": 3,
+    "name": "Municipalidad Distrital de Marcavelica",
+    "facebook_url": "https://www.facebook.com/munimarcavelica",
+    "facebook_identifier": "munimarcavelica"
+  }
+]
