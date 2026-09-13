@@ -162,13 +162,16 @@ class PlaywrightFacebookSourceAdapter:
 
     @staticmethod
     def _date_label(lines: list[str]) -> tuple[int, str | None]:
+        candidates: list[tuple[int, str]] = []
         for index, line in enumerate(lines):
             candidate = _clean_line(line).rstrip("·").strip()
             if _RELATIVE_DATE.fullmatch(candidate) or re.search(r"\b\d{4}\b", candidate) and re.search(r"[A-Za-záéíóú]", candidate):
-                return index, candidate
-            if re.search(r"\b\d{1,2}[/-]\d{1,2}[/-]\d{4}\b", candidate):
-                return index, candidate
-        return -1, None
+                candidates.append((index, candidate))
+            elif re.search(r"\b\d{1,2}[/-]\d{1,2}[/-]\d{4}\b", candidate):
+                candidates.append((index, candidate))
+        # Facebook may render page name/date twice inside an article. The last
+        # date before the body is the post's useful timestamp.
+        return candidates[-1] if candidates else (-1, None)
 
     @staticmethod
     def _text_from_lines(lines: list[str], date_index: int, page_name: str) -> str:
@@ -183,7 +186,12 @@ class PlaywrightFacebookSourceAdapter:
                 continue
             if line == page_name:
                 continue
+            had_see_more = bool(re.search(r"See more\s*$", line, flags=re.I))
             line = re.sub(r"\s*(?:…|\.\.\.)?\s*See more\s*$", "", line, flags=re.I).strip()
+            if had_see_more and len(line) <= 3:
+                continue
+            if _RELATIVE_DATE.fullmatch(line) or re.search(r"\b\d{4}\b", line) and re.search(r"[A-Za-záéíóú]", line):
+                continue
             if line and line not in content:
                 content.append(line)
         return "\n".join(content).strip()
