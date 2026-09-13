@@ -1,0 +1,92 @@
+# Sullana Noticias
+
+MVP editorial mobile-first para descubrir publicaciones públicas, convertir hallazgos en borradores revisables y publicar artículos locales con trazabilidad.
+
+## Estado actual
+
+- Web pública, panel editorial, SQLite persistente, RSS, sitemap, robots.txt, metadata OpenGraph y `NewsArticle`.
+- Pipeline: fuente pública → ingesta → deduplicación → relevancia local → borrador → revisión → publicación.
+- `FacebookSourceAdapter` encapsula `kevinzg/facebook-scraper`.
+- Autopublicación global desactivada. Posts sensibles quedan en `VERIFY`.
+- Fuentes de ejemplo entran pausadas (`enabled = 0`) hasta revisión editorial.
+- El fixture de demo no es una noticia real. Ejecutar `SEED_DEMO_ARTICLE=0 npm run seed` antes de un lanzamiento real.
+
+## Arranque local
+
+Requiere Node.js 22.5+ por `node:sqlite`.
+
+```bash
+cp .env.example .env
+ADMIN_PASSWORD='cambia-esta-clave' npm run seed
+ADMIN_PASSWORD='cambia-esta-clave' npm start
+```
+
+Abrir `http://localhost:8787` y `/admin`. `ADMIN_PASSWORD` nunca va al repositorio.
+
+Comandos:
+
+```bash
+npm run check
+npm test
+npm run seed
+```
+
+## Ingestor Facebook
+
+Instalar dependencia del motor solicitado:
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r services/facebook-ingestor/requirements.txt
+```
+
+El adaptador usa exclusivamente páginas públicas sin credenciales, cookies, grupos privados ni perfiles restringidos. El servidor requiere que una fuente esté activa antes de revisarla. Cada fuente conserva `last_checked_at`, `last_success_at` y los errores de la ejecución.
+
+El proveedor upstream está fijado conceptualmente al repositorio `kevinzg/facebook-scraper`; la evaluación del 13/09/2026 encontró que la rama `master` instala tras añadir `lxml_html_clean`, pero no devuelve posts públicos legibles en tres páginas actuales probadas sin login. El sistema registra ese resultado como error observable y no fabrica posts.
+
+## Flujo editorial
+
+1. Panel: activar una fuente verificada.
+2. `POST /api/admin/ingest` revisa fuentes activas.
+3. `raw_posts` conserva texto, fecha, URL, hash e imagen.
+4. Relevancia detecta señales locales; contenido sensible exige `VERIFY`.
+5. `auto_draft` crea borrador. Redacción inicial queda limitada al texto confirmado.
+6. Editor corrige y confirma publicación explícitamente.
+7. El artículo genera URL, canonical, OpenGraph, JSON-LD, sitemap y RSS.
+
+## Endpoints útiles
+
+```text
+GET  /api/health
+GET  /api/articles
+GET  /api/articles/:slug
+POST /api/auth/login
+GET  /api/admin/dashboard
+GET  /api/admin/sources
+POST /api/admin/ingest
+GET  /api/admin/raw-posts
+POST /api/admin/raw-posts/:id/draft
+GET  /api/admin/drafts
+PUT  /api/admin/drafts/:id
+POST /api/admin/drafts/:id/publish
+```
+
+## Producción
+
+La app necesita un proceso Node persistente y almacenamiento durable para SQLite. Antes de desplegar:
+
+1. Crear `ADMIN_PASSWORD` como secreto del proveedor.
+2. Configurar `SITE_URL` con dominio real y `NODE_ENV=production`.
+3. Montar `data/` como volumen persistente o migrar las consultas a D1/PostgreSQL.
+4. Instalar `services/facebook-ingestor/requirements.txt` en worker Python.
+5. Programar una ejecución cada 20–30 minutos con límite, timeout y backoff.
+6. Activar solo fuentes revisadas; no activar `auto_publish`.
+7. Añadir GA4 o Cloudflare Web Analytics mediante consentimiento y un ID real.
+8. Configurar Adsterra/Monetag solo después de revisar sus términos vigentes y recibir sus IDs.
+
+No se declaran dominio, ingresos, analytics ni aprobación publicitaria sin credenciales o evidencia real.
+
+## Privacidad y derechos
+
+Las publicaciones de Facebook son señales de descubrimiento, no verdad absoluta. No reutilizar imágenes de terceros sin autorización. Conservar enlace original. No copiar literalmente. No inventar nombres, cifras, causas, responsables ni consecuencias.

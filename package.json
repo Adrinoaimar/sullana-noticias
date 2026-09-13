@@ -1,0 +1,19 @@
+{
+  "name": "sullana-noticias",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MVP editorial de noticias locales para Sullana, Piura.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "seed": "node scripts/seed-demo.js",
+    "ingest": "node scripts/run-ingest.js",
+    "test": "node --test",
+    "check": "node --check server.js && node --check scripts/seed-demo.js && node --check scripts/run-ingest.js"
+  },
+  "engines": {
+    "node": ">=22.5"
+  },
+  "license": "MIT"
+}

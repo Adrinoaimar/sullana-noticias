@@ -1,0 +1,4 @@
+# Upstream extraction engine required by the project brief.
+facebook-scraper @ git+https://github.com/kevinzg/facebook-scraper.git
+# Current lxml releases moved this import out of lxml itself.
+lxml_html_clean>=0.4.5

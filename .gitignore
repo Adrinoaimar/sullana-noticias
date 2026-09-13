@@ -1,0 +1,10 @@
+data/*.sqlite
+data/*.sqlite-*
+.env
+.env.*
+!.env.example
+node_modules/
+__pycache__/
+*.pyc
+.pytest_cache/
+work/
