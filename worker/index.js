@@ -165,6 +165,7 @@ async function persistIngest(env, payload) {
   }
   const status = errors.length && !found ? 'ERROR' : errors.length ? 'PARTIAL' : 'SUCCESS';
   await dbRun(db, 'UPDATE scrape_runs SET finished_at=?,posts_found=?,new_posts=?,duplicates=?,errors=?,status=?,error_message=? WHERE id=?', now(), found, fresh, duplicates, errors.length, status, errors.join(' | ') || null, run.meta?.last_row_id);
+  for (const source of sources) await dbRun(db, "UPDATE sources SET last_checked_at=?, last_success_at=CASE WHEN ? IN ('SUCCESS','PARTIAL') THEN ? ELSE last_success_at END WHERE id=?", now(), status, now(), source.id);
   return { run_id: runId, status, posts_found: found, new_posts: fresh, duplicates, errors };
 }
 
