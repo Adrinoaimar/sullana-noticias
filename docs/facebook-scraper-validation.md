@@ -86,3 +86,9 @@ La corrida regional `34862673041` leyó 10 fuentes desde D1, capturó 55 posts p
 El runner amplió el timeout de envío del lote de 30 a 180 segundos (`4425ec5`), porque la captura terminaba correctamente pero la creación de borradores/publicaciones regionales excedía la ventana corta. El adaptador evita reabrir variantes de video con el mismo `post_id` y corta captions al siguiente timestamp visible (`f79cd9a`), además de deduplicar representaciones con el mismo texto y fecha dentro de una fuente. El scheduler mantiene `*/30 * * * *`; `META_GRAPH=PENDING_EXTERNAL` sigue secundario.
 
 Smoke live posterior: health `WEB=OK`, `D1=OK`, `PLAYWRIGHT_ADAPTER`, `META_GRAPH=PENDING_EXTERNAL`; portada 30 tarjetas, Actualidad 29 enlaces, RSS 30 ítems y sitemap 35 URLs de noticias.
+
+## Captura activa y publicación actual — 2026-09-14
+
+El Worker dejó de solicitar fuentes con `enabled=0`; una fuente que agota sus tres reintentos queda pausada con `SCRAPER_ERROR` y las demás continúan. La corrida `34866731668` terminó `SUCCESS` con 57 posts, 3 nuevos y 1 error aislado; la corrida `34868273618` terminó `SUCCESS` con 54 posts, 2 nuevos y el mismo error aislado de Castilla, que quedó pausada en D1. Ambas respuestas fueron HTTP 200 y conservaron la publicación segura sin autopublicar candidatos sensibles.
+
+El siguiente artefacto público añade limpieza del mensaje de reproducción fallida de Facebook antes de formar captions. Se reconstruyó el artefacto para que el Worker desplegado use el código actual, manteniendo el mismo dominio, D1, autenticación, RSS, sitemap, panel y pipeline editorial. Smoke live confirmó 30 enlaces de noticias en portada, 30 ítems RSS, 41 URLs de noticias en sitemap y health `WEB=OK`, `D1=OK`, `PLAYWRIGHT_ADAPTER`, `META_GRAPH=PENDING_EXTERNAL`.
