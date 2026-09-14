@@ -664,6 +664,8 @@ class PlaywrightFacebookSourceAdapter:
                         index,
                         href: node.href || '',
                         alt: node.querySelector('img')?.getAttribute('alt') || '',
+                        aria: node.getAttribute('aria-label') || '',
+                        title: node.getAttribute('title') || '',
                         visible: Boolean(node.getClientRects().length),
                         contexts
                     };
@@ -679,8 +681,12 @@ class PlaywrightFacebookSourceAdapter:
         for item in items if isinstance(items, list) else []:
             if not isinstance(item, dict) or not item.get("visible", True):
                 continue
-            media_alt = _clean_line(item.get("alt") or "")
-            if _PROFILE_MEDIA_LABEL.search(media_alt) or media_alt.lower() == source_name.lower():
+            media_labels = " ".join(
+                _clean_line(item.get(key) or "")
+                for key in ("alt", "aria", "title")
+                if _clean_line(item.get(key) or "")
+            )
+            if _PROFILE_MEDIA_LABEL.search(media_labels) or media_labels.lower() == source_name.lower():
                 continue
             candidate = _canonical_post_url(str(item.get("href") or ""))
             if not candidate or not _post_id(candidate) or candidate in seen:
