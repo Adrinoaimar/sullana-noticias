@@ -17,6 +17,7 @@ const PUBLIC_SECTIONS = [
   ['asaltos', 'Asaltos'],
   ['emergencias', 'Emergencias'],
   ['presidencia', 'Presidencia'],
+  ['politica-local', 'Política local'],
   ['educacion', 'Educación'],
   ['deportes', 'Deportes'],
   ['eventos', 'Eventos'],

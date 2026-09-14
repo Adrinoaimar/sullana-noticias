@@ -114,3 +114,5 @@ CUA abrió [El Chilalo Noticias](https://www.facebook.com/ElChilaloNoticias) sin
 ## Clasificación electoral — 2026-09-14
 
 Se reforzó el clasificador para reconocer términos electorales como `encuestas`, `candidato`, `elección`, `votación`, `alcalde` y `gobernador`. Esas capturas ahora se envían a `politica-local` con estado `VERIFY`; una publicación política nacional continúa en `presidencia`. La prueba unitaria cubre ambos casos. No se alteraron artículos históricos ni la regla de publicación segura: el cambio evita que nuevas publicaciones políticas se autopubliquen como `Actualidad`.
+
+La navegación pública ahora también enlaza `Política local`, manteniendo esa sección separada de `Actualidad` y protegida de la publicación masiva segura.
