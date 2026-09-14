@@ -400,7 +400,7 @@ async function publishSafeDrafts(db, requestOrigin, { recentTrustedOnly = false,
 async function persistIngest(env, payload, requestOrigin) {
   const db = env.DB;
   if (!db) return { status: 'ERROR', error: 'DATABASE_NOT_CONFIGURED' };
-  const sources = await dbRows(db, "SELECT * FROM sources WHERE enabled=1 OR pause_reason='SCRAPER_ERROR' ORDER BY id");
+  const sources = await dbRows(db, "SELECT * FROM sources WHERE enabled=1 ORDER BY id");
   const runId = crypto.randomUUID();
   const started = now();
   const run = await dbRun(db, 'INSERT INTO scrape_runs (run_id,started_at,sources_checked,status) VALUES (?,?,?,?)', runId, started, sources.length, 'RUNNING');
@@ -498,7 +498,7 @@ export default {
         if (!await authorizedIngest(request, env)) return json({ error: 'INGEST_AUTH_REQUIRED' }, 401);
         if (!env.DB) return json({ error: 'DATABASE_NOT_CONFIGURED' }, 503);
         await seed(env.DB);
-        const sources = await dbRows(env.DB, "SELECT id, name, facebook_url, facebook_identifier FROM sources WHERE enabled=1 OR pause_reason='SCRAPER_ERROR' ORDER BY id");
+        const sources = await dbRows(env.DB, "SELECT id, name, facebook_url, facebook_identifier FROM sources WHERE enabled=1 ORDER BY id");
         return json({ sources }, 200, { 'cache-control': 'no-store' });
       }
       if (url.pathname === '/api/auth/login' && request.method === 'POST') {
