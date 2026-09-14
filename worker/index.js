@@ -368,7 +368,7 @@ export default {
           let failed = 0;
           for (const item of candidates) {
             const check = classify(item.summary || item.body || item.title, { trust_level: item.source_trust_level });
-            if (!SAFE_BULK_CATEGORIES.has(String(item.category_slug || '')) || check.status !== 'RELEVANT' || check.sensitive) { skipped += 1; continue; }
+            if (!['OFFICIAL', 'TRUSTED_MEDIA'].includes(String(item.source_trust_level || '')) || !SAFE_BULK_CATEGORIES.has(String(item.category_slug || '')) || check.status !== 'RELEVANT' || check.sensitive) { skipped += 1; continue; }
             try {
               const result = await publishDraftRecord(env.DB, originOf(request), item);
               if (result.created) published += 1; else alreadyPublished += 1;
