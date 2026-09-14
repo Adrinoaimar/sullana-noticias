@@ -110,3 +110,7 @@ La auditoría live de categorías encontró publicaciones públicas en Actualida
 ## Contraste de fuente pública — 2026-09-14
 
 CUA abrió [El Chilalo Noticias](https://www.facebook.com/ElChilaloNoticias) sin login ni controles de acceso: Facebook mostró publicaciones públicas con texto, imagen, hora y enlace original. El `fbid` público `1124807523215202` coincide con el log `captured_via=photo_context` de la corrida `34876060345`; el mismo workflow también capturó publicaciones públicas mediante `video_detail`. Esta evidencia conecta fuente visible, Playwright, normalización, D1 y publicación sin usar contenido inventado.
+
+## Clasificación electoral — 2026-09-14
+
+Se reforzó el clasificador para reconocer términos electorales como `encuestas`, `candidato`, `elección`, `votación`, `alcalde` y `gobernador`. Esas capturas ahora se envían a `politica-local` con estado `VERIFY`; una publicación política nacional continúa en `presidencia`. La prueba unitaria cubre ambos casos. No se alteraron artículos históricos ni la regla de publicación segura: el cambio evita que nuevas publicaciones políticas se autopubliquen como `Actualidad`.
