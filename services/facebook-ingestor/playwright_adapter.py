@@ -191,12 +191,18 @@ class PlaywrightFacebookSourceAdapter:
                 candidates.append((index, candidate))
         if not candidates:
             return (-1, None)
+        # The post timestamp is in Facebook's compact header. Comment times
+        # can be rendered much later in the same article, so prefer the last
+        # candidate in the first header lines before consulting separators.
+        header_candidates = [item for item in candidates if item[0] <= 10]
+        if header_candidates:
+            return header_candidates[-1]
         # Comment timestamps (for example "3h") can appear after the post
         # body. Use the last date before Facebook's reactions/comments block;
         # duplicated page/date headers still resolve to the second header.
         reaction_index = _reaction_boundary_index(lines)
-        header_candidates = [item for item in candidates if item[0] < reaction_index]
-        return (header_candidates or candidates)[-1]
+        pre_reaction_candidates = [item for item in candidates if item[0] < reaction_index]
+        return (pre_reaction_candidates or candidates)[-1]
 
     @staticmethod
     def _text_from_lines(lines: list[str], date_index: int, page_name: str) -> str:
