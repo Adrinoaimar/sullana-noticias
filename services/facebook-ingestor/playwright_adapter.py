@@ -62,7 +62,7 @@ _RELATIVE_DATE = re.compile(
     r"(?:\s+(?:at|a las)\s+\d{1,2}:\d{2}\s*(?:am|pm)?)?$",
     re.I,
 )
-_CONTENT_PATH = re.compile(r"/(?:posts|reel|permalink\.php|photo)(?:/|$)", re.I)
+_CONTENT_PATH = re.compile(r"/(?:posts|reel|videos|permalink\.php|photo)(?:/|$)", re.I)
 _MEDIA_HOSTS = {"facebook.com", "fbcdn.net", "fbsbx.com"}
 _PROFILE_MEDIA_LABEL = re.compile(r"(?:profile|perfil|avatar|logo|icon|ícono|icono)", re.I)
 _STOP_LINES = {
@@ -114,6 +114,10 @@ def _post_id(value: str) -> str | None:
     for index, part in enumerate(parts[:-1]):
         if part.lower() in {"posts", "reel"}:
             return parts[index + 1]
+        if part.lower() == "videos":
+            for candidate in reversed(parts[index + 1:]):
+                if re.fullmatch(r"\d+", candidate):
+                    return candidate
     query = parse_qs(parsed.query)
     return next((query[key][0] for key in ("story_fbid", "fbid", "id") if query.get(key)), None)
 
@@ -321,7 +325,7 @@ class PlaywrightFacebookSourceAdapter:
                 if identifier.lower() not in parsed.path.lower() and not re.search(r"^/(?:photo|permalink\.php)(?:/|$)", parsed.path, re.I):
                     continue
                 canonical = _canonical_post_url(absolute)
-                if canonical:
+                if canonical and _post_id(canonical):
                     candidates.append(canonical)
             return candidates[0] if candidates else None
         except Exception:
@@ -370,6 +374,110 @@ class PlaywrightFacebookSourceAdapter:
                 seen.add(canonical)
         logger.info("source=%s public_photo_candidates=%d", identifier, len(candidates))
         return candidates
+
+    @staticmethod
+    def _video_candidates(page: Any, identifier: str) -> list[str]:
+        """Collect public video/reel detail links exposed by the Page feed."""
+        try:
+            hrefs = page.locator("a").evaluate_all(
+                """nodes => nodes.map(node => node.href || '').filter(Boolean)"""
+            )
+        except Exception:
+            return []
+        candidates: list[str] = []
+        seen: set[str] = set()
+        for href in hrefs if isinstance(hrefs, list) else []:
+            absolute = urljoin("https://www.facebook.com/", str(href))
+            parsed = urlsplit(absolute)
+            if not parsed.netloc.lower().endswith("facebook.com"):
+                continue
+            is_video = bool(re.search(r"/videos/(?:[^/]+/)?\d+/?$", parsed.path, re.I))
+            is_reel = bool(re.search(r"/reel/\d+/?$", parsed.path, re.I))
+            if not (is_video or is_reel):
+                continue
+            canonical = _canonical_post_url(absolute)
+            if canonical and _post_id(canonical) and canonical not in seen:
+                candidates.append(canonical)
+                seen.add(canonical)
+        logger.info("source=%s public_video_candidates=%d", identifier, len(candidates))
+        return candidates
+
+    @staticmethod
+    def _video_text(lines: list[str]) -> str:
+        """Extract the visible caption from a public video detail page."""
+        start = -1
+        for index, line in enumerate(lines):
+            if re.fullmatch(r"\d+:\d+\s*/\s*\d+:\d+", _clean_line(line)):
+                start = index + 1
+                break
+        if start < 0:
+            start = next((index for index, line in enumerate(lines) if "#" in line), 0)
+        content: list[str] = []
+        for raw_line in lines[start:]:
+            line = _clean_line(raw_line)
+            lowered = line.lower()
+            if lowered.startswith(("like comment share", "me gusta comentar compartir")):
+                break
+            if re.search(r"(?:all\s+reactions|todas\s+las\s+reacciones|reacciones)", lowered):
+                break
+            if not line or line in {"Video", "More", "Home", "Live", "Reels", "Explore", "Seguir", "Follow", "See more"}:
+                continue
+            if re.fullmatch(r"\d+:\d+\s*/\s*\d+:\d+", line):
+                continue
+            line = re.sub(r"\s*(?:…|\.\.\.)?\s*See more\s*$", "", line, flags=re.I).strip()
+            if line and line not in content:
+                content.append(line)
+        return "\n".join(content).strip()
+
+    def _extract_video_page(self, page: Any, source: dict[str, Any], identifier: str, video_url: str) -> dict[str, Any] | None:
+        """Parse text/date from a publicly visible video detail page."""
+        try:
+            body = page.locator("body")
+            lines = [_clean_line(line) for line in body.inner_text(timeout=self.timeout * 1000).splitlines()]
+            source_name = str(source.get("name") or "")
+            source_index = next((index for index, line in enumerate(lines) if line == source_name), -1)
+            date_label = None
+            if source_index >= 0:
+                date_label = next(
+                    (line for line in lines[source_index + 1:source_index + 4] if _looks_like_date_label(line)),
+                    None,
+                )
+            if not date_label:
+                _, date_label = self._date_label(lines)
+            permalink = self._page_permalink(page, identifier) or _canonical_post_url(page.url) or video_url
+            if not permalink or not _post_id(permalink):
+                logger.info("source=%s video_skip=no_permalink url=%s final_url=%s", source_name or "unknown", video_url, page.url)
+                return None
+            text = self._video_text(lines)
+            if not text or not date_label:
+                logger.info(
+                    "source=%s video_skip=missing_fields date=%s text_len=%d lines=%d",
+                    source_name or "unknown", bool(date_label), len(text), len(lines),
+                )
+                return None
+            media = self._media(body)
+            images = [item for item in media if item.get("kind") == "image"]
+            videos = [item for item in media if item.get("kind") == "video"]
+            return {
+                "source_id": source.get("id"),
+                "source_url": source.get("facebook_url"),
+                "page_identifier": identifier,
+                "post_id": _post_id(permalink),
+                "page_name": source.get("name"),
+                "text": text,
+                "published_at": _published_value(date_label),
+                "published_at_raw": date_label,
+                "post_url": permalink,
+                "media": media,
+                "image": images[0]["url"] if images else None,
+                "video": videos[0].get("url") if videos else None,
+                "likes": None,
+                "comments": None,
+                "shares": None,
+                "reactions": None,
+            }
+        except (PlaywrightTimeoutError, ValueError):
+            return None
 
     def _extract_photo_page(self, page: Any, source: dict[str, Any], identifier: str, photo_url: str) -> dict[str, Any] | None:
         """Parse a public photo detail page when the feed hides its article card."""
@@ -658,6 +766,7 @@ class PlaywrightFacebookSourceAdapter:
             page_url,
             f"https://www.facebook.com/{identifier}/?sk=posts",
             f"https://m.facebook.com/{identifier}/",
+            f"https://www.facebook.com/{identifier}/videos/",
         ]
         logger.info("opening source=%s url=%s", source.get("name", "unknown"), page_url)
         posts: list[dict[str, Any]] = []
@@ -672,6 +781,7 @@ class PlaywrightFacebookSourceAdapter:
             page = context.new_page()
             page.set_default_timeout(self.timeout * 1000)
             photo_candidates: list[str] = []
+            video_candidates: list[str] = []
             try:
                 for variant_index, candidate_url in enumerate(page_urls):
                     if len(posts) >= self.page_limit:
@@ -707,6 +817,9 @@ class PlaywrightFacebookSourceAdapter:
                         for photo_url in self._photo_candidates(page, identifier):
                             if photo_url not in photo_candidates:
                                 photo_candidates.append(photo_url)
+                        for video_url in self._video_candidates(page, identifier):
+                            if video_url not in video_candidates:
+                                video_candidates.append(video_url)
                     except PlaywrightTimeoutError:
                         logger.warning("source=%s variant=%d timeout", source.get("name", "unknown"), variant_index + 1)
 
@@ -733,6 +846,32 @@ class PlaywrightFacebookSourceAdapter:
                                     logger.info("source=%s captured_via=photo_detail url=%s", source.get("name", "unknown"), post["post_url"])
                             except PlaywrightTimeoutError:
                                 logger.warning("source=%s photo_detail_timeout url=%s", source.get("name", "unknown"), photo_url)
+                    finally:
+                        detail_page.close()
+
+                if len(posts) < self.page_limit and video_candidates:
+                    detail_page = context.new_page()
+                    detail_page.set_default_timeout(self.timeout * 1000)
+                    try:
+                        max_video_pages = min(len(video_candidates), self.page_limit * 2)
+                        for video_url in video_candidates[:max_video_pages]:
+                            if len(posts) >= self.page_limit:
+                                break
+                            try:
+                                detail_page.goto(video_url, wait_until="domcontentloaded", timeout=self.timeout * 1000)
+                                detail_page.wait_for_timeout(1400)
+                                if re.search(r"/login(?:/|$)", urlsplit(detail_page.url).path, re.I):
+                                    logger.warning(
+                                        "source=%s video_detail_unavailable=login_redirect",
+                                        source.get("name", "unknown"),
+                                    )
+                                    break
+                                post = self._extract_video_page(detail_page, source, identifier, video_url)
+                                if post and post["post_url"] not in {item["post_url"] for item in posts}:
+                                    posts.append(post)
+                                    logger.info("source=%s captured_via=video_detail url=%s", source.get("name", "unknown"), post["post_url"])
+                            except PlaywrightTimeoutError:
+                                logger.warning("source=%s video_detail_timeout url=%s", source.get("name", "unknown"), video_url)
                     finally:
                         detail_page.close()
             finally:
