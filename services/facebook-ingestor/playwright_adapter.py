@@ -206,13 +206,18 @@ class PlaywrightFacebookSourceAdapter:
         encoded = os.getenv("FACEBOOK_STORAGE_STATE_B64", "").strip()
         if not encoded:
             return None
+        # Secret input can be wrapped by a shell or secret manager. Whitespace
+        # is not part of the base64 payload and must not disable public capture.
+        encoded = re.sub(r"\s+", "", encoded)
         try:
             decoded = base64.b64decode(encoded, validate=True)
             state = json.loads(decoded)
         except (binascii.Error, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
-            raise RuntimeError(f"Invalid FACEBOOK_STORAGE_STATE_B64: {type(exc).__name__}") from None
+            logger.warning("Ignoring invalid optional Facebook storage state: %s", type(exc).__name__)
+            return None
         if not isinstance(state, dict) or not isinstance(state.get("cookies", []), list):
-            raise RuntimeError("Invalid Facebook storage state shape")
+            logger.warning("Ignoring optional Facebook storage state with invalid shape")
+            return None
         return state
 
     @staticmethod
