@@ -168,6 +168,20 @@ def _srcset_candidates(value: Any) -> list[str]:
     return candidates
 
 
+def _looks_like_date_label(value: Any) -> bool:
+    """Recognize the visible timestamp link used by Facebook feed cards."""
+    label = _clean_line(str(value or "")).rstrip("·").strip()
+    if not label:
+        return False
+    normalized = label.lower()
+    return bool(
+        _RELATIVE_DATE.fullmatch(normalized)
+        or re.search(r"\b\d{1,2}\s+(?:de\s+)?[A-Za-záéíóú]+(?:\s+de)?\s+\d{4}\b", normalized)
+        or re.search(r"\b[A-Za-z]+\s+\d{1,2},?\s+\d{4}\b", normalized)
+        or re.search(r"\b\d{1,2}[/-]\d{1,2}[/-]\d{4}\b", normalized)
+    )
+
+
 class PlaywrightFacebookSourceAdapter:
     """Capture public Page articles while leaving normalization downstream."""
 
@@ -311,6 +325,57 @@ class PlaywrightFacebookSourceAdapter:
                     return _canonical_post_url(f"https://www.facebook.com/{identifier}/posts/{post_id}")
         return None
 
+    def _timestamp_permalink(self, page: Any, article: Any, identifier: str) -> str | None:
+        """Resolve a feed timestamp link without guessing a post identifier.
+
+        Facebook sometimes renders a public feed card with a timestamp anchor
+        that points back to the Page. Clicking that visible timestamp lets the
+        public client resolve the real permalink. We use only the resulting
+        Facebook URL and immediately return to the feed; no login, CAPTCHA or
+        access-control interaction is attempted.
+        """
+        try:
+            anchors = article.locator("a")
+            for index in range(min(anchors.count(), 16)):
+                anchor = anchors.nth(index)
+                labels = [
+                    anchor.inner_text(timeout=500),
+                    anchor.get_attribute("aria-label") or "",
+                    anchor.get_attribute("title") or "",
+                ]
+                if not any(_looks_like_date_label(label) for label in labels):
+                    continue
+                initial_url = page.url
+                try:
+                    anchor.click(timeout=min(self.timeout * 1000, 2500))
+                    page.wait_for_timeout(700)
+                    candidates = [_canonical_post_url(page.url)]
+                    links = page.locator("a")
+                    for link_index in range(min(links.count(), 160)):
+                        href = links.nth(link_index).get_attribute("href") or ""
+                        if href and "comment_id=" not in href:
+                            candidates.append(_canonical_post_url(urljoin("https://www.facebook.com/", href)))
+                    for candidate in candidates:
+                        if candidate and _post_id(candidate):
+                            logger.info(
+                                "source=%s permalink_resolved_via_timestamp=%s",
+                                identifier,
+                                candidate,
+                            )
+                            return candidate
+                finally:
+                    if page.url != initial_url:
+                        try:
+                            page.go_back(wait_until="domcontentloaded", timeout=min(self.timeout * 1000, 5000))
+                            page.wait_for_timeout(500)
+                        except Exception:
+                            page.goto(initial_url, wait_until="domcontentloaded", timeout=min(self.timeout * 1000, 5000))
+                            page.wait_for_timeout(500)
+                break
+        except Exception as exc:
+            logger.debug("timestamp permalink resolution failed: %s", type(exc).__name__)
+        return None
+
     @staticmethod
     def _media(article: Any) -> list[dict[str, Any]]:
         """Extract public media metadata from the visible article DOM.
@@ -377,7 +442,7 @@ class PlaywrightFacebookSourceAdapter:
                 break
         return media
 
-    def _extract_article(self, article: Any, source: dict[str, Any], identifier: str) -> dict[str, Any] | None:
+    def _extract_article(self, article: Any, source: dict[str, Any], identifier: str, page: Any | None = None) -> dict[str, Any] | None:
         try:
             for label in ("See more", "Ver más"):
                 try:
@@ -388,6 +453,8 @@ class PlaywrightFacebookSourceAdapter:
                 except Exception:
                     continue
             permalink = self._permalink(article, identifier) or self._dom_permalink(article, identifier)
+            if not permalink and page is not None:
+                permalink = self._timestamp_permalink(page, article, identifier)
             if not permalink:
                 logger.info(
                     "source=%s article_skip=no_permalink anchors=%d",
@@ -474,7 +541,7 @@ class PlaywrightFacebookSourceAdapter:
                         article_count = articles.count()
                         logger.info("source=%s variant=%d articles=%d", source.get("name", "unknown"), variant_index + 1, article_count)
                         for index in range(min(article_count, self.page_limit * 4)):
-                            post = self._extract_article(articles.nth(index), source, identifier)
+                            post = self._extract_article(articles.nth(index), source, identifier, page)
                             if post and post["post_url"] not in {item["post_url"] for item in posts}:
                                 posts.append(post)
                             if len(posts) >= self.page_limit:
