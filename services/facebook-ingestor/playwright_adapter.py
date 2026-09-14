@@ -174,9 +174,17 @@ class PlaywrightFacebookSourceAdapter:
                 candidates.append((index, candidate))
             elif re.search(r"\b\d{1,2}[/-]\d{1,2}[/-]\d{4}\b", candidate):
                 candidates.append((index, candidate))
-        # Facebook may render page name/date twice inside an article. The last
-        # date before the body is the post's useful timestamp.
-        return candidates[-1] if candidates else (-1, None)
+        if not candidates:
+            return (-1, None)
+        # Comment timestamps (for example "3h") can appear after the post
+        # body. Use the last date before Facebook's reactions/comments block;
+        # duplicated page/date headers still resolve to the second header.
+        reaction_index = next(
+            (index for index, line in enumerate(lines) if _clean_line(line).lower() in _STOP_LINES),
+            len(lines),
+        )
+        header_candidates = [item for item in candidates if item[0] < reaction_index]
+        return (header_candidates or candidates)[-1]
 
     @staticmethod
     def _text_from_lines(lines: list[str], date_index: int, page_name: str) -> str:
