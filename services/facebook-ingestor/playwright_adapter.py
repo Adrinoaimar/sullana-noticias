@@ -239,11 +239,23 @@ class PlaywrightFacebookSourceAdapter:
                     continue
             permalink = self._permalink(article, identifier)
             if not permalink:
+                logger.info(
+                    "source=%s article_skip=no_permalink anchors=%d",
+                    source.get("name", "unknown"),
+                    article.locator("a").count(),
+                )
                 return None
             lines = [_clean_line(line) for line in article.inner_text(timeout=self.timeout * 1000).splitlines()]
             date_index, date_label = self._date_label(lines)
             text = self._text_from_lines(lines, date_index, str(source.get("name") or ""))
             if not text or not date_label:
+                logger.info(
+                    "source=%s article_skip=missing_fields date=%s text_len=%d lines=%d",
+                    source.get("name", "unknown"),
+                    bool(date_label),
+                    len(text),
+                    len(lines),
+                )
                 return None
             return {
                 "source_id": source.get("id"),
@@ -294,7 +306,9 @@ class PlaywrightFacebookSourceAdapter:
                     page.mouse.wheel(0, 2200)
                     page.wait_for_timeout(1500)
                 articles = page.locator("div[role='article']")
-                for index in range(min(articles.count(), self.page_limit * 4)):
+                article_count = articles.count()
+                logger.info("source=%s articles=%d", source.get("name", "unknown"), article_count)
+                for index in range(min(article_count, self.page_limit * 4)):
                     post = self._extract_article(articles.nth(index), source, identifier)
                     if post and post["post_url"] not in {item["post_url"] for item in posts}:
                         posts.append(post)
