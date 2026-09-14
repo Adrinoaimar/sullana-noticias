@@ -144,3 +144,5 @@ La ejecución directa `34897882714` sobre `ingest.yml` y el commit `15994c8` ter
 La ejecución regional `34901658122` terminó `SUCCESS` en 11m11s: Chromium headless cargó 9 fuentes activas, capturó 55 posts públicos, creó 3 nuevos, conservó 281 imágenes y registró 0 errores; D1 respondió HTTP 200 y `publish_safe=true` publicó 2 candidatos seguros. Como tampoco aparecieron los eventos `schedule` de las 22:00 y 22:37 UTC, el cron se aisló en `scheduled-ingest.yml` con `7,37 * * * *`; `ingest.yml` queda reutilizable/manual y el wrapper manual sigue disponible.
 
 La primera prueba manual del workflow aislado `34905374955` terminó `SUCCESS` en 11m02s: el health live confirmó 55 posts procesados, 4 nuevos y 0 errores; la portada conservó 30 tarjetas, RSS 30 ítems y sitemap 53 URLs. Esto valida el wrapper nuevo sin mover la web pública.
+
+La regla editorial ampliada reconoce referencias gubernamentales y a Keiko Fujimori como contenido político: lo clasifica en `politica-local` y exige `VERIFY`, evitando que una publicación política nueva entre por error en la publicación segura. La prueba automatizada correspondiente pasa junto con el resto de la suite.

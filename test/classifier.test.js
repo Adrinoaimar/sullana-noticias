@@ -12,3 +12,12 @@ test('political and electoral posts require verification and their own section',
 test('national presidential posts use the presidency section', () => {
   assert.equal(sectionFor('El presidente informó nuevas medidas desde el Congreso.'), 'presidencia');
 });
+
+test('political government references require verification', () => {
+  const result = classify('Gobierno de Keiko Fujimori anuncia cambios ideológicos en el currículo escolar.', {
+    trust_level: 'TRUSTED_MEDIA',
+  });
+  assert.equal(result.category_slug, 'politica-local');
+  assert.equal(result.sensitive, true);
+  assert.equal(result.status, 'VERIFY');
+});
