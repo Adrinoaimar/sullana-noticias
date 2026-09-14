@@ -619,10 +619,14 @@ class PlaywrightFacebookSourceAdapter:
             for context in item.get("contexts") if isinstance(item.get("contexts"), list) else []:
                 context_text = str(context or "")
                 context_tokens = _text_signature(context_text)
-                if source_tokens and not source_tokens.issubset(context_tokens):
-                    continue
                 overlap = len(article_tokens & context_tokens)
-                if overlap >= max(3, min(6, len(article_tokens) // 4 or 3)):
+                source_match = bool(source_tokens and source_tokens.issubset(context_tokens))
+                threshold = max(3, min(6, len(article_tokens) // 4 or 3))
+                # Anonymous Facebook wrappers may omit the page name from
+                # the nearest container. In that case require a stronger
+                # caption match before accepting the visible photo URL.
+                if (source_match and overlap >= threshold) or overlap >= max(5, threshold + 2):
+                    logger.info("source=%s permalink_resolved_via_photo_context post_id=%s overlap=%d source_match=%s", identifier, _post_id(candidate), overlap, source_match)
                     return candidate
         return None
 
