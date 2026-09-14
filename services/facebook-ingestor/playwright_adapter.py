@@ -305,6 +305,113 @@ class PlaywrightFacebookSourceAdapter:
         return candidates[0] if candidates else None
 
     @staticmethod
+    def _page_permalink(page: Any, identifier: str) -> str | None:
+        """Find the post permalink exposed by a public photo detail page."""
+        try:
+            links = page.locator("a")
+            candidates: list[str] = []
+            for index in range(min(links.count(), 160)):
+                href = links.nth(index).get_attribute("href") or ""
+                if not href or "comment_id=" in href:
+                    continue
+                absolute = urljoin("https://www.facebook.com/", href)
+                parsed = urlsplit(absolute)
+                if not _CONTENT_PATH.search(parsed.path):
+                    continue
+                if identifier.lower() not in parsed.path.lower() and not re.search(r"^/(?:photo|permalink\.php)(?:/|$)", parsed.path, re.I):
+                    continue
+                canonical = _canonical_post_url(absolute)
+                if canonical:
+                    candidates.append(canonical)
+            return candidates[0] if candidates else None
+        except Exception:
+            return None
+
+    @staticmethod
+    def _photo_candidates(page: Any, identifier: str) -> list[str]:
+        """Collect only visible public post-photo links from the feed.
+
+        Page cover/profile links are excluded. A photo is a discovery hint only;
+        the detail page must independently expose text, date and a permalink.
+        """
+        try:
+            items = page.locator("a[href*='/photo/']").evaluate_all(
+                """nodes => nodes.map(node => ({
+                    href: node.href || '',
+                    insideArticle: Boolean(node.closest('[role=article]'))
+                }))"""
+            )
+        except Exception:
+            return []
+        candidates: list[str] = []
+        seen: set[str] = set()
+        for item in items if isinstance(items, list) else []:
+            if not isinstance(item, dict):
+                continue
+            href = str(item.get("href") or "")
+            absolute = urljoin("https://www.facebook.com/", href)
+            parsed = urlsplit(absolute)
+            query = parse_qs(parsed.query)
+            if not query.get("fbid") or not parsed.path.lower().startswith("/photo"):
+                continue
+            album = str((query.get("set") or [""])[0])
+            # `pb.` is the public page-photo collection. An article-local link
+            # may use an album-shaped value, so retain it only in that scope.
+            if album and not album.startswith("pb.") and not item.get("insideArticle"):
+                continue
+            canonical = _canonical_post_url(absolute)
+            if canonical and canonical not in seen:
+                candidates.append(canonical)
+                seen.add(canonical)
+        logger.info("source=%s public_photo_candidates=%d", identifier, len(candidates))
+        return candidates
+
+    def _extract_photo_page(self, page: Any, source: dict[str, Any], identifier: str, photo_url: str) -> dict[str, Any] | None:
+        """Parse a public photo detail page when the feed hides its article card."""
+        try:
+            body = page.locator("body")
+            lines = [_clean_line(line) for line in body.inner_text(timeout=self.timeout * 1000).splitlines()]
+            date_index, date_label = self._date_label(lines)
+            permalink = self._page_permalink(page, identifier) or _canonical_post_url(page.url) or photo_url
+            if not permalink or not _post_id(permalink):
+                logger.info("source=%s photo_skip=no_permalink url=%s", source.get("name", "unknown"), photo_url)
+                return None
+            text = self._text_from_lines(lines, date_index, str(source.get("name") or ""))
+            if not text or not date_label:
+                logger.info(
+                    "source=%s photo_skip=missing_fields date=%s date_index=%d text_len=%d lines=%d",
+                    source.get("name", "unknown"),
+                    bool(date_label),
+                    date_index,
+                    len(text),
+                    len(lines),
+                )
+                return None
+            media = self._media(body)
+            images = [item for item in media if item.get("kind") == "image"]
+            videos = [item for item in media if item.get("kind") == "video"]
+            return {
+                "source_id": source.get("id"),
+                "source_url": source.get("facebook_url"),
+                "page_identifier": identifier,
+                "post_id": _post_id(permalink),
+                "page_name": source.get("name"),
+                "text": text,
+                "published_at": _published_value(date_label),
+                "published_at_raw": date_label,
+                "post_url": permalink,
+                "media": media,
+                "image": images[0]["url"] if images else None,
+                "video": videos[0].get("url") if videos else None,
+                "likes": None,
+                "comments": None,
+                "shares": None,
+                "reactions": None,
+            }
+        except (PlaywrightTimeoutError, ValueError):
+            return None
+
+    @staticmethod
     def _dom_permalink(article: Any, identifier: str) -> str | None:
         """Recover a public post permalink from visible article metadata.
 
@@ -559,6 +666,7 @@ class PlaywrightFacebookSourceAdapter:
             context = browser.new_context(**context_kwargs)
             page = context.new_page()
             page.set_default_timeout(self.timeout * 1000)
+            photo_candidates: list[str] = []
             try:
                 for variant_index, candidate_url in enumerate(page_urls):
                     if len(posts) >= self.page_limit:
@@ -591,8 +699,31 @@ class PlaywrightFacebookSourceAdapter:
                                 posts.append(post)
                             if len(posts) >= self.page_limit:
                                 break
+                        for photo_url in self._photo_candidates(page, identifier):
+                            if photo_url not in photo_candidates:
+                                photo_candidates.append(photo_url)
                     except PlaywrightTimeoutError:
                         logger.warning("source=%s variant=%d timeout", source.get("name", "unknown"), variant_index + 1)
+
+                if len(posts) < self.page_limit and photo_candidates:
+                    detail_page = context.new_page()
+                    detail_page.set_default_timeout(self.timeout * 1000)
+                    try:
+                        max_photo_pages = min(len(photo_candidates), self.page_limit * 2)
+                        for photo_url in photo_candidates[:max_photo_pages]:
+                            if len(posts) >= self.page_limit:
+                                break
+                            try:
+                                detail_page.goto(photo_url, wait_until="domcontentloaded", timeout=self.timeout * 1000)
+                                detail_page.wait_for_timeout(1400)
+                                post = self._extract_photo_page(detail_page, source, identifier, photo_url)
+                                if post and post["post_url"] not in {item["post_url"] for item in posts}:
+                                    posts.append(post)
+                                    logger.info("source=%s captured_via=photo_detail url=%s", source.get("name", "unknown"), post["post_url"])
+                            except PlaywrightTimeoutError:
+                                logger.warning("source=%s photo_detail_timeout url=%s", source.get("name", "unknown"), photo_url)
+                    finally:
+                        detail_page.close()
             finally:
                 context.close()
                 browser.close()
