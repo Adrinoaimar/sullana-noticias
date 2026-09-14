@@ -101,7 +101,9 @@ function sectionFor(value) {
 
 function classify(value, source = {}) {
   const text = signalText(value);
-  const local = source.trust_level === 'TRUSTED_MEDIA' || ['sullana', 'bellavista', 'marcavelica', 'querecotillo', 'lancones', 'miguel checa', 'salitral', 'piura', 'mallares'].some((term) => text.includes(term));
+  const sourceSignal = signalText(`${source.name || ''} ${source.facebook_identifier || ''}`);
+  const localTerms = ['sullana', 'bellavista', 'marcavelica', 'querecotillo', 'lancones', 'miguel checa', 'salitral', 'piura', 'castilla', 'veintiseis', 'paita', 'sechura', 'chulucanas', 'morropon', 'mallares'];
+  const local = source.trust_level === 'TRUSTED_MEDIA' || localTerms.some((term) => text.includes(term) || sourceSignal.includes(term));
   const sensitive = SENSITIVE_TERMS.some((term) => text.includes(term));
   return { status: local ? (sensitive ? 'VERIFY' : 'RELEVANT') : 'NOT_RELEVANT', verification: sensitive ? 'VERIFY' : 'UNVERIFIED', category_slug: sectionFor(value), sensitive };
 }
@@ -160,6 +162,10 @@ async function seed(db) {
     ['El Chilalo Noticias', 'https://www.facebook.com/ElChilaloNoticias/', 'ElChilaloNoticias', 'TRUSTED_MEDIA', 1],
     ['Del Chira Noticias', 'https://www.facebook.com/delchiranoticias', 'delchiranoticias', 'TRUSTED_MEDIA', 1],
     ['El Churre Noticias - Sullana', 'https://www.facebook.com/elchurrenoticiasoficialsullana', 'elchurrenoticiasoficialsullana', 'TRUSTED_MEDIA', 1],
+    ['Municipalidad Provincial de Piura', 'https://www.facebook.com/MuniPiura/', 'MuniPiura', 'OFFICIAL', 1],
+    ['Gobierno Regional Piura', 'https://www.facebook.com/GobiernoRegionalPiura/', 'GobiernoRegionalPiura', 'OFFICIAL', 1],
+    ['Municipalidad Distrital de Castilla - Piura', 'https://www.facebook.com/muni.castilla.3/', 'muni.castilla.3', 'OFFICIAL', 1],
+    ['Municipalidad Distrital de Veintiséis de Octubre', 'https://www.facebook.com/MunicipioVeintiseisDeOctubre/', 'MunicipioVeintiseisDeOctubre', 'OFFICIAL', 1],
   ];
   for (const source of sources) await dbRun(db, 'INSERT OR IGNORE INTO sources (name, facebook_url, facebook_identifier, trust_level, enabled, auto_draft, auto_publish) VALUES (?, ?, ?, ?, ?, 1, 0)', ...source);
   await dbRun(db, "UPDATE sources SET pause_reason='SCRAPER_ERROR' WHERE enabled=0 AND trust_level='TRUSTED_MEDIA' AND last_success_at IS NULL AND pause_reason='NONE'");

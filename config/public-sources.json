@@ -46,5 +46,25 @@
     "name": "El Churre Noticias - Sullana",
     "facebook_url": "https://www.facebook.com/elchurrenoticiasoficialsullana",
     "facebook_identifier": "elchurrenoticiasoficialsullana"
+  },
+  {
+    "name": "Municipalidad Provincial de Piura",
+    "facebook_url": "https://www.facebook.com/MuniPiura/",
+    "facebook_identifier": "MuniPiura"
+  },
+  {
+    "name": "Gobierno Regional Piura",
+    "facebook_url": "https://www.facebook.com/GobiernoRegionalPiura/",
+    "facebook_identifier": "GobiernoRegionalPiura"
+  },
+  {
+    "name": "Municipalidad Distrital de Castilla - Piura",
+    "facebook_url": "https://www.facebook.com/muni.castilla.3/",
+    "facebook_identifier": "muni.castilla.3"
+  },
+  {
+    "name": "Municipalidad Distrital de Veintiséis de Octubre",
+    "facebook_url": "https://www.facebook.com/MunicipioVeintiseisDeOctubre/",
+    "facebook_identifier": "MunicipioVeintiseisDeOctubre"
   }
 ]
