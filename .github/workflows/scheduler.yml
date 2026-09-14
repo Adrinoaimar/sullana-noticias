@@ -1,0 +1,17 @@
+name: Sullana Noticias · scheduler
+
+on:
+  schedule:
+    # El scheduler separado evita depender del registro del workflow principal.
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ingest:
+    uses: ./.github/workflows/ingest.yml
+    secrets: inherit
+    with:
+      scope: all
