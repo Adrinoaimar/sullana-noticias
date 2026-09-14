@@ -85,6 +85,14 @@ def _clean_line(value: str) -> str:
     return re.sub(r"\s+", " ", str(value or "").replace("\xa0", " ")).strip()
 
 
+def _reaction_boundary_index(lines: list[str]) -> int:
+    for index, line in enumerate(lines):
+        lowered = _clean_line(line).lower()
+        if lowered.startswith(("all reactions", "todas las reacciones")):
+            return index
+    return len(lines)
+
+
 def _canonical_post_url(value: str) -> str | None:
     parsed = urlsplit(value)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc.lower().endswith("facebook.com"):
@@ -186,10 +194,7 @@ class PlaywrightFacebookSourceAdapter:
         # Comment timestamps (for example "3h") can appear after the post
         # body. Use the last date before Facebook's reactions/comments block;
         # duplicated page/date headers still resolve to the second header.
-        reaction_index = next(
-            (index for index, line in enumerate(lines) if _clean_line(line).lower() in _STOP_LINES),
-            len(lines),
-        )
+        reaction_index = _reaction_boundary_index(lines)
         header_candidates = [item for item in candidates if item[0] < reaction_index]
         return (header_candidates or candidates)[-1]
 
@@ -200,7 +205,7 @@ class PlaywrightFacebookSourceAdapter:
         for raw_line in lines[start:]:
             line = _clean_line(raw_line)
             lowered = line.lower()
-            if lowered in _STOP_LINES or lowered.startswith("all reactions"):
+            if lowered in _STOP_LINES or lowered.startswith(("all reactions", "todas las reacciones")):
                 break
             if not line or line in {"·", "…"} or re.fullmatch(r"\+\d+", line):
                 continue
@@ -257,9 +262,10 @@ class PlaywrightFacebookSourceAdapter:
             text = self._text_from_lines(lines, date_index, str(source.get("name") or ""))
             if not text or not date_label:
                 logger.info(
-                    "source=%s article_skip=missing_fields date=%s text_len=%d lines=%d",
+                    "source=%s article_skip=missing_fields date=%s date_index=%d text_len=%d lines=%d",
                     source.get("name", "unknown"),
                     bool(date_label),
+                    date_index,
                     len(text),
                     len(lines),
                 )
