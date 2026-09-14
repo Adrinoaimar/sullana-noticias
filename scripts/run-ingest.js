@@ -14,10 +14,10 @@ const sectionFor = (text) => {
   if (/asesin|homicid|violencia|detenid|capturad|denuncia|fiscalía|policía/.test(normalized)) return 'seguridad';
   return 'actualidad';
 };
-const classify = (text) => {
+const classify = (text, source = {}) => {
   const normalized = String(text || '').toLowerCase();
-  const local = terms.some((term) => normalized.includes(term));
-  const verify = sensitive.some((term) => normalized.includes(term));
+  const local = source.trust_level === 'TRUSTED_MEDIA' || terms.some((term) => normalized.includes(term));
+  const verify = sensitive.some((term) => normalized.includes(term)) || /muere|muerto|muerta/.test(normalized);
   return { status: local ? (verify ? 'VERIFY' : 'RELEVANT') : 'NOT_RELEVANT', verification: verify ? 'VERIFY' : 'UNVERIFIED', category_slug: sectionFor(text) };
 };
 const titleFrom = (text) => (String(text || '').replace(/\s+/g, ' ').trim().split(/[.!?]\s/)[0] || 'Nueva publicación local').slice(0, 100);
@@ -69,12 +69,26 @@ if (!sources.length) {
   for (const post of posts) {
     const source = sources.find((item) => item.id === post.source_id);
     if (!source || !post.post_url) continue;
-    const check = classify(post.text);
+    const check = classify(post.text, source);
     const hash = contentHash(post.text, post.post_url);
     const media = normalizeMedia(post.media, post.image);
     const image = media.find((item) => item.kind === 'image')?.url || null;
     const outcome = insert.run(source.id, post.post_id || null, post.text || '', post.post_url, image, JSON.stringify(media), post.published_at || null, now(), hash, check.status, check.verification, post.likes ?? null, post.comments ?? null, post.shares ?? null, JSON.stringify(post.reactions || null));
-    if (!outcome.changes) { duplicates += 1; continue; }
+    if (!outcome.changes) {
+      duplicates += 1;
+      if (source.auto_draft && check.status !== 'NOT_RELEVANT') {
+        const raw = db.prepare('SELECT * FROM raw_posts WHERE content_hash = ?').get(hash);
+        const existingDraft = raw && db.prepare('SELECT id FROM news_drafts WHERE raw_post_id = ?').get(raw.id);
+        if (raw && !existingDraft) {
+          const title = titleFrom(raw.text);
+          const sourceVerification = check.verification === 'VERIFY' || source.trust_level !== 'OFFICIAL' ? 'VERIFY' : 'UNVERIFIED';
+          const category = getCategory(db, check.category_slug);
+          db.prepare('INSERT INTO news_drafts (raw_post_id, category_id, title, dek, summary, body, keywords, meta_title, meta_description, slug, source_name, source_url, original_post_url, original_published_at, image_type, image_url, media_json, verification_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(raw.id, category.id, title, 'Borrador pendiente de revisión editorial.', raw.text, raw.text, 'Sullana, Piura, actualidad local', title, raw.text.slice(0, 155), uniqueSlug(db, title), source.name, source.facebook_url, raw.post_url, raw.published_at, raw.image_url ? 'SOURCE_IMAGE' : 'NO_IMAGE', raw.image_url || null, raw.media_json || '[]', sourceVerification);
+          db.prepare('UPDATE raw_posts SET processing_status = ?, verification_status = ? WHERE id = ?').run('DRAFTED', sourceVerification, raw.id);
+        }
+      }
+      continue;
+    }
     newPosts += 1;
     if (source.auto_draft && check.status !== 'NOT_RELEVANT') {
       const raw = db.prepare('SELECT * FROM raw_posts WHERE content_hash = ?').get(hash);

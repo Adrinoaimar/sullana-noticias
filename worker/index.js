@@ -51,16 +51,16 @@ function sectionFor(value) {
   const text = String(value || '').toLowerCase();
   if (/\bpresident(?:e|a)\b|presidencia|palacio de gobierno|ejecutivo nacional|congreso|ministro/.test(text)) return 'presidencia';
   if (/asalto|asaltaron|asaltante|atraco|robo|robó|robado|hurto|delincu/.test(text)) return 'asaltos';
-  if (/accidente|incendio|rescate|desaparec|emergencia|evacuaci/.test(text)) return 'emergencias';
+  if (/accidente|incendio|rescate|desaparec|emergencia|evacuaci|muere|muerto|muerta|fallec/.test(text)) return 'emergencias';
   if (/corte de agua|agua potable|luz eléctrica|alumbrado|pista|vía pública|servicio/.test(text)) return 'servicios';
   if (/asesin|homicid|violencia|detenid|capturad|denuncia|fiscalía|policía/.test(text)) return 'seguridad';
   return 'actualidad';
 }
 
-function classify(value) {
+function classify(value, source = {}) {
   const text = String(value || '').toLowerCase();
-  const local = ['sullana', 'bellavista', 'marcavelica', 'querecotillo', 'lancones', 'miguel checa', 'salitral', 'piura', 'mallares'].some((term) => text.includes(term));
-  const sensitive = ['accidente', 'delito', 'fallec', 'denuncia', 'emergencia', 'acusaci', 'asesin', 'muerte', 'politica', 'política'].some((term) => text.includes(term));
+  const local = source.trust_level === 'TRUSTED_MEDIA' || ['sullana', 'bellavista', 'marcavelica', 'querecotillo', 'lancones', 'miguel checa', 'salitral', 'piura', 'mallares'].some((term) => text.includes(term));
+  const sensitive = ['accidente', 'delito', 'fallec', 'muere', 'muerto', 'muerta', 'denuncia', 'emergencia', 'acusaci', 'asesin', 'muerte', 'politica', 'política'].some((term) => text.includes(term));
   return { status: local ? (sensitive ? 'VERIFY' : 'RELEVANT') : 'NOT_RELEVANT', verification: sensitive ? 'VERIFY' : 'UNVERIFIED', category_slug: sectionFor(value) };
 }
 
@@ -222,7 +222,7 @@ async function dashboard(env) {
 
 async function createDraft(db, raw) {
   const source = await dbFirst(db, 'SELECT * FROM sources WHERE id=?', raw.source_id);
-  const check = classify(raw.text);
+  const check = classify(raw.text, source);
   const category = await dbFirst(db, 'SELECT * FROM categories WHERE slug=?', check.category_slug) || await dbFirst(db, "SELECT * FROM categories WHERE slug='actualidad'");
   if (!source || !category) throw new Error('SOURCE_OR_CATEGORY_NOT_FOUND');
   const title = titleFrom(raw.text);
@@ -250,12 +250,22 @@ async function persistIngest(env, payload) {
     const source = sources.find((item) => item.id === Number(post.source_id) || item.facebook_identifier === post.page_identifier || item.facebook_url === post.source_url);
     if (!source || !post.post_url) continue;
     found += 1;
-    const check = classify(post.text);
+    const check = classify(post.text, source);
     const hash = await digest(`${post.text || ''}\n${post.post_url}`);
     const media = normalizeMedia(post.media, post.image);
     const image = media.find((item) => item.kind === 'image')?.url || null;
     const result = await dbRun(db, insert, source.id, post.post_id || null, post.text || '', post.post_url, image, JSON.stringify(media), post.published_at || null, now(), hash, check.status, check.verification, post.likes ?? null, post.comments ?? null, post.shares ?? null, JSON.stringify(post.reactions || null));
-    if (!result.meta?.changes) { duplicates += 1; continue; }
+    if (!result.meta?.changes) {
+      duplicates += 1;
+      if (source.auto_draft && check.status !== 'NOT_RELEVANT') {
+        const raw = await dbFirst(db, 'SELECT * FROM raw_posts WHERE content_hash=?', hash);
+        const existingDraft = raw && await dbFirst(db, 'SELECT id FROM news_drafts WHERE raw_post_id=?', raw.id);
+        if (raw && !existingDraft) {
+          try { await createDraft(db, raw); } catch (error) { errors.push(`${source.name}: ${error.message}`); }
+        }
+      }
+      continue;
+    }
     fresh += 1;
     if (source.auto_draft && check.status !== 'NOT_RELEVANT') {
       try { const raw = await dbFirst(db, 'SELECT * FROM raw_posts WHERE content_hash=?', hash); await createDraft(db, raw); } catch (error) { errors.push(`${source.name}: ${error.message}`); }
