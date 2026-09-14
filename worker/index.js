@@ -311,6 +311,12 @@ export default {
         const lastFinished = lastScrape?.finished_at ? Date.parse(lastScrape.finished_at) : NaN;
         return json({ web: 'OK', database: env.DB ? 'OK' : 'MISSING', scraper: env.INGEST_TOKEN ? 'PLAYWRIGHT_ADAPTER' : 'NOT_CONFIGURED', meta_graph: 'PENDING_EXTERNAL', last_scrape: lastScrape, last_scrape_minutes: Number.isFinite(lastFinished) ? Math.max(0, Math.round((Date.now() - lastFinished) / 60000)) : null });
       }
+      if (url.pathname === '/api/ingest-sources' && request.method === 'GET') {
+        if (!await authorizedIngest(request, env)) return json({ error: 'INGEST_AUTH_REQUIRED' }, 401);
+        if (!env.DB) return json({ error: 'DATABASE_NOT_CONFIGURED' }, 503);
+        const sources = await dbRows(env.DB, "SELECT id, name, facebook_url, facebook_identifier FROM sources WHERE enabled=1 OR pause_reason='SCRAPER_ERROR' ORDER BY id");
+        return json({ sources }, 200, { 'cache-control': 'no-store' });
+      }
       if (url.pathname === '/api/auth/login' && request.method === 'POST') {
         const body = await bodyJson(request);
         if (!env.ADMIN_PASSWORD) return json({ error: 'ADMIN_PASSWORD_NOT_CONFIGURED' }, 503);

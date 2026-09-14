@@ -39,7 +39,8 @@ jobs:
           SULLANA_SCOPE: ${{ inputs.scope || 'all' }}
         run: |
           python - <<'PY'
-          import json, os, subprocess, sys, urllib.request
+          import json, os, subprocess, sys, urllib.error, urllib.request
+          from urllib.parse import urlsplit, urlunsplit
           from pathlib import Path
 
           endpoint = os.environ.get("SULLANA_INGEST_URL", "").strip()
@@ -47,6 +48,25 @@ jobs:
           if not endpoint or not token:
               raise SystemExit("Missing SULLANA_INGEST_URL or SULLANA_INGEST_TOKEN repository secrets")
           sources = json.loads(Path("config/public-sources.json").read_text())
+          remote_sources = None
+          endpoint_parts = urlsplit(endpoint)
+          endpoint_path = endpoint_parts.path.rstrip("/")
+          if endpoint_path.endswith("/api/ingest"):
+              endpoint_path = endpoint_path[:-len("/api/ingest")] + "/api/ingest-sources"
+          else:
+              endpoint_path = "/api/ingest-sources"
+          sources_endpoint = urlunsplit((endpoint_parts.scheme, endpoint_parts.netloc, endpoint_path, "", ""))
+          try:
+              source_request = urllib.request.Request(sources_endpoint, method="GET", headers={"Authorization": f"Bearer {token}", "User-Agent": "SullanaNoticiasIngest/1.0"})
+              with urllib.request.urlopen(source_request, timeout=30) as source_response:
+                  source_payload = json.loads(source_response.read())
+              if isinstance(source_payload, dict) and isinstance(source_payload.get("sources"), list):
+                  remote_sources = source_payload["sources"]
+                  print(f"Loaded {len(remote_sources)} enabled source(s) from D1")
+          except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, ValueError) as error:
+              print(f"WARN active source list unavailable; using repository config: {type(error).__name__}", file=sys.stderr)
+          if remote_sources is not None:
+              sources = remote_sources
           if os.environ.get("SULLANA_SCOPE") == "chilalo-churre":
               focus = {"ElChilaloNoticias", "elchurrenoticiasoficialsullana"}
               sources = [source for source in sources if source.get("facebook_identifier") in focus]

@@ -90,7 +90,7 @@ Para el despliegue Worker/D1:
 npm run site:validate
 ```
 
-Configurar en Sites/Cloudflare los secretos `ADMIN_PASSWORD` e `INGEST_TOKEN`. El ingestor Python debe ejecutar `PlaywrightFacebookSourceAdapter` en un runner persistente/cron y enviar solo JSON normalizado a `POST /api/ingest` con `Authorization: Bearer ...`.
+Configurar en Sites/Cloudflare los secretos `ADMIN_PASSWORD` e `INGEST_TOKEN`. El ingestor Python debe ejecutar `PlaywrightFacebookSourceAdapter` en un runner persistente/cron y enviar solo JSON normalizado a `POST /api/ingest` con `Authorization: Bearer ...`. Antes de capturar, Actions consulta `GET /api/ingest-sources` con el mismo token para respetar las fuentes activas o pausadas desde el panel; si el endpoint no responde, conserva la configuración versionada como fallback.
 
 El servidor Node/SQLite local requiere además un proceso persistente y almacenamiento durable. Antes de usar cualquiera de los dos entornos:
 
