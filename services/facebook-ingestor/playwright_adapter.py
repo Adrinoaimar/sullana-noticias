@@ -88,7 +88,7 @@ def _clean_line(value: str) -> str:
 def _reaction_boundary_index(lines: list[str]) -> int:
     for index, line in enumerate(lines):
         lowered = _clean_line(line).lower()
-        if lowered.startswith(("all reactions", "todas las reacciones")):
+        if re.search(r"(?:all\s+reactions|todas\s+las\s+reacciones|reacciones)", lowered) and len(lowered) < 100:
             return index
     return len(lines)
 
@@ -205,7 +205,7 @@ class PlaywrightFacebookSourceAdapter:
         for raw_line in lines[start:]:
             line = _clean_line(raw_line)
             lowered = line.lower()
-            if lowered in _STOP_LINES or lowered.startswith(("all reactions", "todas las reacciones")):
+            if lowered in _STOP_LINES or re.search(r"(?:all\s+reactions|todas\s+las\s+reacciones|reacciones)", lowered):
                 break
             if not line or line in {"·", "…"} or re.fullmatch(r"\+\d+", line):
                 continue
