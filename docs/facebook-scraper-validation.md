@@ -92,3 +92,11 @@ Smoke live posterior: health `WEB=OK`, `D1=OK`, `PLAYWRIGHT_ADAPTER`, `META_GRAP
 El Worker dejó de solicitar fuentes con `enabled=0`; una fuente que agota sus tres reintentos queda pausada con `SCRAPER_ERROR` y las demás continúan. La corrida `34866731668` terminó `SUCCESS` con 57 posts, 3 nuevos y 1 error aislado; la corrida `34868273618` terminó `SUCCESS` con 54 posts, 2 nuevos y el mismo error aislado de Castilla, que quedó pausada en D1. Ambas respuestas fueron HTTP 200 y conservaron la publicación segura sin autopublicar candidatos sensibles.
 
 El siguiente artefacto público añade limpieza del mensaje de reproducción fallida de Facebook antes de formar captions. Se reconstruyó el artefacto para que el Worker desplegado use el código actual, manteniendo el mismo dominio, D1, autenticación, RSS, sitemap, panel y pipeline editorial. Smoke live confirmó 30 enlaces de noticias en portada, 30 ítems RSS, 41 URLs de noticias en sitemap y health `WEB=OK`, `D1=OK`, `PLAYWRIGHT_ADAPTER`, `META_GRAPH=PENDING_EXTERNAL`.
+
+## Dedupe de representaciones y verificación visual — 2026-09-14
+
+El commit `1e5722c` deduplica captions largos que Facebook expone con etiquetas relativas distintas (`6m`/`7m`) y conserva la captura más completa. La prueba unitaria del adaptador pasó con 3 casos; el artefacto mantiene limpieza de UI de reproducción y de imágenes no editoriales.
+
+La corrida `34872991032` terminó `SUCCESS`: leyó 9 fuentes activas desde D1, capturó 7 posts públicos reales de Chilalo/Churre, 37 referencias de imagen y 0 errores; `new_posts=0` confirmó deduplicación en la repetición. Health posterior: `WEB=OK`, `D1=OK`, `PLAYWRIGHT_ADAPTER`, `META_GRAPH=PENDING_EXTERNAL`.
+
+La portada en producción devuelve 30 tarjetas y 30 URLs únicas. En viewport móvil la grilla es de una columna y por eso se ve una tarjeta por pantalla; `Ver todo` muestra el archivo completo. No se modificaron D1, autenticación, RSS, sitemap ni el dominio público.
