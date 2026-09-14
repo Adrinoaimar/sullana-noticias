@@ -2,7 +2,7 @@ name: Sullana Noticias · ingesta pública
 
 on:
   schedule:
-    # Intervalo probado en Actions; la concurrencia evita solapamientos.
+    # Intervalo probado en Actions; re-registrado el 14/09/2026; la concurrencia evita solapamientos.
     - cron: "*/30 * * * *"
   workflow_dispatch:
     inputs:
