@@ -11,6 +11,8 @@ on:
         required: false
         type: boolean
         default: true
+  schedule:
+    - cron: "7,37 * * * *"
   workflow_dispatch:
     inputs:
       scope:

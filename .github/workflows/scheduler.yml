@@ -1,11 +1,8 @@
 name: Sullana Noticias · scheduler
 
 on:
-  # El wrapper es el único disparador periódico y reutiliza el workflow de
-  # ingesta. El intervalo es aproximadamente cada 30 minutos, fuera de
-  # :00/:30 para reducir retrasos.
-  schedule:
-    - cron: "7,37 * * * *"
+  # Respaldo manual del workflow reutilizable; el cron vive en ingest.yml,
+  # cuya ruta ya cuenta con ejecuciones schedule históricas exitosas.
   workflow_dispatch:
 
 permissions:
