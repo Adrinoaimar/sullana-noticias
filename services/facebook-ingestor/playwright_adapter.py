@@ -336,42 +336,56 @@ class PlaywrightFacebookSourceAdapter:
         """
         try:
             anchors = article.locator("a")
+            fallback_anchor = None
             for index in range(min(anchors.count(), 16)):
                 anchor = anchors.nth(index)
-                labels = [
-                    anchor.inner_text(timeout=500),
-                    anchor.get_attribute("aria-label") or "",
-                    anchor.get_attribute("title") or "",
-                ]
-                if not any(_looks_like_date_label(label) for label in labels):
-                    continue
-                initial_url = page.url
                 try:
-                    anchor.click(timeout=min(self.timeout * 1000, 2500))
-                    page.wait_for_timeout(700)
-                    candidates = [_canonical_post_url(page.url)]
-                    links = page.locator("a")
-                    for link_index in range(min(links.count(), 160)):
-                        href = links.nth(link_index).get_attribute("href") or ""
-                        if href and "comment_id=" not in href:
-                            candidates.append(_canonical_post_url(urljoin("https://www.facebook.com/", href)))
-                    for candidate in candidates:
-                        if candidate and _post_id(candidate):
-                            logger.info(
-                                "source=%s permalink_resolved_via_timestamp=%s",
-                                identifier,
-                                candidate,
-                            )
-                            return candidate
-                finally:
-                    if page.url != initial_url:
-                        try:
-                            page.go_back(wait_until="domcontentloaded", timeout=min(self.timeout * 1000, 5000))
-                            page.wait_for_timeout(500)
-                        except Exception:
-                            page.goto(initial_url, wait_until="domcontentloaded", timeout=min(self.timeout * 1000, 5000))
-                            page.wait_for_timeout(500)
+                    href = anchor.get_attribute("href") or ""
+                    labels = [
+                        anchor.inner_text(timeout=500),
+                        anchor.text_content(timeout=500) or "",
+                        anchor.get_attribute("aria-label") or "",
+                        anchor.get_attribute("title") or "",
+                        anchor.get_attribute("data-tooltip-content") or "",
+                    ]
+                except Exception:
+                    continue
+                if not any(_looks_like_date_label(label) for label in labels):
+                    parsed_href = urlsplit(urljoin("https://www.facebook.com/", href))
+                    if parsed_href.path.rstrip("/").lower() == f"/{identifier}".lower() and parsed_href.fragment:
+                        fallback_anchor = anchor
+                    continue
+                fallback_anchor = anchor
                 break
+            if fallback_anchor is None:
+                return None
+            anchor = fallback_anchor
+            try:
+                initial_url = page.url
+                anchor.click(timeout=min(self.timeout * 1000, 2500))
+                page.wait_for_timeout(700)
+                candidates = [_canonical_post_url(page.url)]
+                links = page.locator("a")
+                for link_index in range(min(links.count(), 160)):
+                    href = links.nth(link_index).get_attribute("href") or ""
+                    if href and "comment_id=" not in href:
+                        candidates.append(_canonical_post_url(urljoin("https://www.facebook.com/", href)))
+                for candidate in candidates:
+                    if candidate and _post_id(candidate):
+                        logger.info(
+                            "source=%s permalink_resolved_via_timestamp=%s",
+                            identifier,
+                            candidate,
+                        )
+                        return candidate
+            finally:
+                if page.url != initial_url:
+                    try:
+                        page.go_back(wait_until="domcontentloaded", timeout=min(self.timeout * 1000, 5000))
+                        page.wait_for_timeout(500)
+                    except Exception:
+                        page.goto(initial_url, wait_until="domcontentloaded", timeout=min(self.timeout * 1000, 5000))
+                        page.wait_for_timeout(500)
         except Exception as exc:
             logger.debug("timestamp permalink resolution failed: %s", type(exc).__name__)
         return None
