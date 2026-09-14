@@ -721,6 +721,12 @@ class PlaywrightFacebookSourceAdapter:
                             try:
                                 detail_page.goto(photo_url, wait_until="domcontentloaded", timeout=self.timeout * 1000)
                                 detail_page.wait_for_timeout(1400)
+                                if re.search(r"/login(?:/|$)", urlsplit(detail_page.url).path, re.I):
+                                    logger.warning(
+                                        "source=%s photo_detail_unavailable=login_redirect",
+                                        source.get("name", "unknown"),
+                                    )
+                                    break
                                 post = self._extract_photo_page(detail_page, source, identifier, photo_url)
                                 if post and post["post_url"] not in {item["post_url"] for item in posts}:
                                     posts.append(post)
