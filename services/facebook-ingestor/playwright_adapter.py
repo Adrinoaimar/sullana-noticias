@@ -925,12 +925,20 @@ class PlaywrightFacebookSourceAdapter:
                 # The current feed exposes this as a button. A text locator
                 # may resolve a truncated ancestor and leave the caption
                 # hidden, so prefer the semantic role.
-                more = target.get_by_role("button", name=label, exact=True).first
-                if more.count() and more.is_visible():
-                    more.click(timeout=1500)
-                    if page is not None:
-                        page.wait_for_timeout(900)
-                    return True
+                candidates = [target.get_by_role("button", name=label, exact=True)]
+                # Anonymous Facebook layouts sometimes render the control as
+                # a clickable text node without an explicit button role.
+                candidates.append(target.get_by_text(label, exact=True))
+                for locator in candidates:
+                    for index in range(min(locator.count(), 12)):
+                        more = locator.nth(index)
+                        if not more.is_visible():
+                            continue
+                        more.scroll_into_view_if_needed(timeout=1000)
+                        more.click(timeout=1500)
+                        if page is not None:
+                            page.wait_for_timeout(900)
+                        return True
             except Exception:
                 continue
         return False
