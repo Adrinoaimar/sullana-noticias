@@ -338,19 +338,21 @@ class PlaywrightFacebookSourceAdapter:
             anchors = article.locator("a")
             fallback_anchor = None
             anchor_summary: list[dict[str, Any]] = []
-            for index in range(min(anchors.count(), 16)):
-                anchor = anchors.nth(index)
-                try:
-                    href = anchor.get_attribute("href") or ""
-                    labels = [
-                        anchor.inner_text(timeout=500),
-                        anchor.text_content(timeout=500) or "",
-                        anchor.get_attribute("aria-label") or "",
-                        anchor.get_attribute("title") or "",
-                        anchor.get_attribute("data-tooltip-content") or "",
-                    ]
-                except Exception:
+            anchor_data = anchors.evaluate_all(
+                """nodes => nodes.slice(0, 16).map(node => ({
+                    href: node.getAttribute('href') || '',
+                    text: node.textContent || '',
+                    aria: node.getAttribute('aria-label') || '',
+                    title: node.getAttribute('title') || '',
+                    tooltip: node.getAttribute('data-tooltip-content') || ''
+                }))"""
+            )
+            for index, item in enumerate(anchor_data if isinstance(anchor_data, list) else []):
+                if not isinstance(item, dict):
                     continue
+                anchor = anchors.nth(index)
+                href = str(item.get("href") or "")
+                labels = [item.get("text"), item.get("aria"), item.get("title"), item.get("tooltip")]
                 parsed_href = urlsplit(urljoin("https://www.facebook.com/", href))
                 anchor_summary.append({
                     "path": parsed_href.path[:120],
