@@ -189,6 +189,10 @@ class PlaywrightFacebookSourceAdapter:
                 candidates.append((index, candidate))
             elif re.search(r"\b\d{1,2}[/-]\d{1,2}[/-]\d{4}\b", candidate):
                 candidates.append((index, candidate))
+            elif re.search(r"\b\d{1,2}:\d{2}\b", candidate) and len(candidate) <= 80:
+                # Localized labels may use punctuation or a.m./p.m. variants
+                # that are not worth normalizing; preserve the visible value.
+                candidates.append((index, candidate))
         if not candidates:
             return (-1, None)
         # The post timestamp is in Facebook's compact header. Comment times
