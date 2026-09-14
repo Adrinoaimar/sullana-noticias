@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import html
 import json
 import logging
 import os
@@ -182,6 +183,15 @@ def _looks_like_date_label(value: Any) -> bool:
     )
 
 
+def _html_attribute(attributes: str, name: str) -> str:
+    match = re.search(rf"\b{name}\s*=\s*(['\"])(.*?)\1", attributes, flags=re.I | re.S)
+    return html.unescape(match.group(2)) if match else ""
+
+
+def _html_text(value: str) -> str:
+    return _clean_line(html.unescape(re.sub(r"<[^>]+>", " ", value or "")))
+
+
 class PlaywrightFacebookSourceAdapter:
     """Capture public Page articles while leaving normalization downstream."""
 
@@ -338,15 +348,16 @@ class PlaywrightFacebookSourceAdapter:
             anchors = article.locator("a")
             fallback_anchor = None
             anchor_summary: list[dict[str, Any]] = []
-            anchor_data = article.evaluate(
-                """node => Array.from(node.querySelectorAll('a')).slice(0, 16).map(anchor => ({
-                    href: anchor.getAttribute('href') || '',
-                    text: anchor.textContent || '',
-                    aria: anchor.getAttribute('aria-label') || '',
-                    title: anchor.getAttribute('title') || '',
-                    tooltip: anchor.getAttribute('data-tooltip-content') || ''
-                }))"""
-            )
+            markup = article.inner_html(timeout=min(self.timeout * 1000, 2500))
+            anchor_data = []
+            for attributes, body in re.findall(r"<a\b([^>]*)>(.*?)</a\s*>", markup, flags=re.I | re.S)[:16]:
+                anchor_data.append({
+                    "href": _html_attribute(attributes, "href"),
+                    "text": _html_text(body),
+                    "aria": _html_attribute(attributes, "aria-label"),
+                    "title": _html_attribute(attributes, "title"),
+                    "tooltip": _html_attribute(attributes, "data-tooltip-content"),
+                })
             for index, item in enumerate(anchor_data if isinstance(anchor_data, list) else []):
                 if not isinstance(item, dict):
                     continue
