@@ -1,0 +1,22 @@
+name: Sullana Noticias · scheduled ingest
+
+on:
+  schedule:
+    # Aproximadamente cada 30 minutos, fuera de :00/:30 para reducir retrasos.
+    - cron: "7,37 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sullana-facebook-ingest-scheduler
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    uses: ./.github/workflows/ingest.yml
+    secrets: inherit
+    with:
+      scope: all
+      publish_safe: true

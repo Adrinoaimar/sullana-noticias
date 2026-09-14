@@ -1,8 +1,8 @@
 name: Sullana Noticias · scheduler
 
 on:
-  # Respaldo manual del workflow reutilizable; el cron vive en ingest.yml,
-  # cuya ruta ya cuenta con ejecuciones schedule históricas exitosas.
+  # Respaldo manual del workflow reutilizable; el cron vive en
+  # scheduled-ingest.yml para aislar el registro periódico.
   workflow_dispatch:
 
 permissions:

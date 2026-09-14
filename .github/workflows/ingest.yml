@@ -11,9 +11,6 @@ on:
         required: false
         type: boolean
         default: true
-  schedule:
-    # Aproximadamente cada 30 minutos, fuera de :00/:30 para reducir retrasos.
-    - cron: "7,37 * * * *"
   workflow_dispatch:
     inputs:
       scope:
