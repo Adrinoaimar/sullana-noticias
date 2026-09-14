@@ -12,7 +12,7 @@ import os
 import re
 from datetime import datetime
 from typing import Any
-from urllib.parse import parse_qs, urljoin, urlsplit, urlunsplit
+from urllib.parse import parse_qs, urlencode, urljoin, urlsplit, urlunsplit
 
 try:
     from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
@@ -361,7 +361,12 @@ class PlaywrightFacebookSourceAdapter:
                 continue
             canonical = _canonical_post_url(absolute)
             if canonical and canonical not in seen:
-                candidates.append(canonical)
+                # Keep the public album hint for navigation; canonical is
+                # still used as the dedupe key and persisted post URL.
+                navigation_query = {"fbid": query["fbid"][0]}
+                if album:
+                    navigation_query["set"] = album
+                candidates.append(urlunsplit(("https", "www.facebook.com", "/photo/", urlencode(navigation_query), "")))
                 seen.add(canonical)
         logger.info("source=%s public_photo_candidates=%d", identifier, len(candidates))
         return candidates
@@ -374,7 +379,7 @@ class PlaywrightFacebookSourceAdapter:
             date_index, date_label = self._date_label(lines)
             permalink = self._page_permalink(page, identifier) or _canonical_post_url(page.url) or photo_url
             if not permalink or not _post_id(permalink):
-                logger.info("source=%s photo_skip=no_permalink url=%s", source.get("name", "unknown"), photo_url)
+                logger.info("source=%s photo_skip=no_permalink url=%s final_url=%s", source.get("name", "unknown"), photo_url, page.url)
                 return None
             text = self._text_from_lines(lines, date_index, str(source.get("name") or ""))
             if not text or not date_label:
