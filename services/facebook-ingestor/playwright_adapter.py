@@ -438,6 +438,7 @@ class PlaywrightFacebookSourceAdapter:
     def _extract_video_page(self, page: Any, source: dict[str, Any], identifier: str, video_url: str) -> dict[str, Any] | None:
         """Parse text/date from a publicly visible video detail page."""
         try:
+            self._expand_visible_text(page, page)
             body = page.locator("body")
             lines = [_clean_line(line) for line in body.inner_text(timeout=self.timeout * 1000).splitlines()]
             source_name = str(source.get("name") or "")
@@ -488,6 +489,7 @@ class PlaywrightFacebookSourceAdapter:
     def _extract_photo_page(self, page: Any, source: dict[str, Any], identifier: str, photo_url: str) -> dict[str, Any] | None:
         """Parse a public photo detail page when the feed hides its article card."""
         try:
+            self._expand_visible_text(page, page)
             body = page.locator("body")
             lines = [_clean_line(line) for line in body.inner_text(timeout=self.timeout * 1000).splitlines()]
             date_index, date_label = self._date_label(lines)
@@ -707,16 +709,27 @@ class PlaywrightFacebookSourceAdapter:
                 break
         return media
 
+    @staticmethod
+    def _expand_visible_text(target: Any, page: Any | None = None) -> bool:
+        """Expand a public caption using Facebook's visible button only."""
+        for label in ("See more", "Ver más"):
+            try:
+                # The current feed exposes this as a button. A text locator
+                # may resolve a truncated ancestor and leave the caption
+                # hidden, so prefer the semantic role.
+                more = target.get_by_role("button", name=label, exact=True).first
+                if more.count() and more.is_visible():
+                    more.click(timeout=1500)
+                    if page is not None:
+                        page.wait_for_timeout(900)
+                    return True
+            except Exception:
+                continue
+        return False
+
     def _extract_article(self, article: Any, source: dict[str, Any], identifier: str, page: Any | None = None) -> dict[str, Any] | None:
         try:
-            for label in ("See more", "Ver más"):
-                try:
-                    more = article.get_by_text(label, exact=True).first
-                    if more.count():
-                        more.click(timeout=1000)
-                        break
-                except Exception:
-                    continue
+            self._expand_visible_text(article, page)
             permalink = self._permalink(article, identifier) or self._dom_permalink(article, identifier)
             if not permalink and page is not None:
                 permalink = self._timestamp_permalink(page, article, identifier)
