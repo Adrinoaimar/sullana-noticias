@@ -178,7 +178,7 @@ const displayDek = (article) => {
 };
 const displayOriginalDate = (article) => article.original_published_at ? ` · Facebook: ${article.original_published_at}` : '';
 
-function card(article) { return `<article class="card"><div class="eyebrow">${esc(article.category_name || 'Actualidad')} · ${esc(article.published_at || 'Sin fecha')}${esc(displayOriginalDate(article))}</div><h3><a href="/noticias/${encodeURIComponent(article.slug)}">${esc(article.title)}</a></h3><p>${esc(displayDek(article))}</p><a class="button" href="/noticias/${encodeURIComponent(article.slug)}">Leer noticia ↗</a></article>`; }
+function card(article) { return `<article class="card"><div class="eyebrow">${esc(article.category_name || 'Actualidad')} · ${esc(article.published_at || 'Sin fecha')}${esc(displayOriginalDate(article))}${article.source_name ? ` · ${esc(article.source_name)}` : ''}</div><h3><a href="/noticias/${encodeURIComponent(article.slug)}">${esc(article.title)}</a></h3><p>${esc(displayDek(article))}</p><a class="button" href="/noticias/${encodeURIComponent(article.slug)}">Leer noticia ↗</a></article>`; }
 
 async function home(env, request) {
   const articles = await articleRows(env);
