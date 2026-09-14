@@ -4,20 +4,23 @@ import { contentHash, getCategory, openDatabase, uniqueSlug } from '../src/db.js
 
 const now = () => new Date().toISOString();
 const terms = ['sullana', 'bellavista', 'marcavelica', 'querecotillo', 'lancones', 'miguel checa', 'salitral', 'piura', 'mallares'];
-const sensitive = ['accidente', 'delito', 'fallec', 'denuncia', 'emergencia', 'acusaci', 'asesin', 'muerte', 'política', 'politica'];
+const signalText = (value) => String(value || '').toLowerCase()
+  .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .replace(/[01345]/g, (character) => ({ '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's' })[character]);
+const sensitive = ['accidente', 'delito', 'fallec', 'muere', 'muerto', 'muerta', 'denuncia', 'emergencia', 'acusaci', 'acusan', 'asesin', 'muerte', 'politica', 'crimen', 'matanz', 'secuest', 'extors', 'asalto', 'atraco', 'robo', 'robado', 'hurto', 'homicid', 'violencia', 'detenid', 'captur', 'fiscalia', 'policia', 'pnp', 'pelea', 'agresion', 'dispar', 'arma', 'herid', 'acusad', 'amenaz', 'cadaver', 'desaparec'];
 const sectionFor = (text) => {
-  const normalized = String(text || '').toLowerCase();
+  const normalized = signalText(text);
   if (/\bpresident(?:e|a)\b|presidencia|palacio de gobierno|ejecutivo nacional|congreso|ministro/.test(normalized)) return 'presidencia';
-  if (/asalto|asaltaron|asaltante|atraco|robo|robó|robado|hurto|delincu/.test(normalized)) return 'asaltos';
+  if (/asalto|asaltaron|asaltante|atraco|robo|robado|hurto|delincu|crimen|matanz|secuest|extors/.test(normalized)) return 'asaltos';
   if (/accidente|incendio|rescate|desaparec|emergencia|evacuaci/.test(normalized)) return 'emergencias';
-  if (/corte de agua|agua potable|luz eléctrica|alumbrado|pista|vía pública|servicio/.test(normalized)) return 'servicios';
-  if (/asesin|homicid|violencia|detenid|capturad|denuncia|fiscalía|policía/.test(normalized)) return 'seguridad';
+  if (/corte de agua|agua potable|luz electrica|alumbrado|pista|via publica|servicio/.test(normalized)) return 'servicios';
+  if (/asesin|homicid|violencia|detenid|capturad|denuncia|fiscalia|policia|\bpnp\b|pelea|agresion|dispar|arma|herid|acusad/.test(normalized)) return 'seguridad';
   return 'actualidad';
 };
 const classify = (text, source = {}) => {
-  const normalized = String(text || '').toLowerCase();
+  const normalized = signalText(text);
   const local = source.trust_level === 'TRUSTED_MEDIA' || terms.some((term) => normalized.includes(term));
-  const verify = sensitive.some((term) => normalized.includes(term)) || /muere|muerto|muerta/.test(normalized);
+  const verify = sensitive.some((term) => normalized.includes(term));
   return { status: local ? (verify ? 'VERIFY' : 'RELEVANT') : 'NOT_RELEVANT', verification: verify ? 'VERIFY' : 'UNVERIFIED', category_slug: sectionFor(text) };
 };
 const titleFrom = (text) => (String(text || '').replace(/\s+/g, ' ').trim().split(/[.!?]\s/)[0] || 'Nueva publicación local').slice(0, 100);

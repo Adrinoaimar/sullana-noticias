@@ -63,20 +63,25 @@ const normalizeMedia = (value, fallbackImage = null) => {
   return output;
 };
 
+const signalText = (value) => String(value || '').toLowerCase()
+  .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .replace(/[01345]/g, (character) => ({ '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's' })[character]);
+const SENSITIVE_TERMS = ['accidente', 'delito', 'fallec', 'muere', 'muerto', 'muerta', 'denuncia', 'emergencia', 'acusaci', 'acusan', 'asesin', 'muerte', 'politica', 'crimen', 'matanz', 'secuest', 'extors', 'asalto', 'atraco', 'robo', 'robado', 'hurto', 'homicid', 'violencia', 'detenid', 'captur', 'fiscalia', 'policia', 'pnp', 'pelea', 'agresion', 'dispar', 'arma', 'herid', 'acusad', 'amenaz', 'cadaver', 'desaparec'];
+
 function sectionFor(value) {
-  const text = String(value || '').toLowerCase();
+  const text = signalText(value);
   if (/\bpresident(?:e|a)\b|presidencia|palacio de gobierno|ejecutivo nacional|congreso|ministro/.test(text)) return 'presidencia';
-  if (/asalto|asaltaron|asaltante|atraco|robo|robó|robado|hurto|delincu/.test(text)) return 'asaltos';
+  if (/asalto|asaltaron|asaltante|atraco|robo|robado|hurto|delincu|crimen|matanz|secuest|extors/.test(text)) return 'asaltos';
   if (/accidente|incendio|rescate|desaparec|emergencia|evacuaci|muere|muerto|muerta|fallec/.test(text)) return 'emergencias';
-  if (/corte de agua|agua potable|luz eléctrica|alumbrado|pista|vía pública|servicio/.test(text)) return 'servicios';
-  if (/asesin|homicid|violencia|detenid|capturad|denuncia|fiscalía|policía/.test(text)) return 'seguridad';
+  if (/corte de agua|agua potable|luz electrica|alumbrado|pista|via publica|servicio/.test(text)) return 'servicios';
+  if (/asesin|homicid|violencia|detenid|capturad|denuncia|fiscalia|policia|\bpnp\b|pelea|agresion|dispar|arma|herid|acusad/.test(text)) return 'seguridad';
   return 'actualidad';
 }
 
 function classify(value, source = {}) {
-  const text = String(value || '').toLowerCase();
+  const text = signalText(value);
   const local = source.trust_level === 'TRUSTED_MEDIA' || ['sullana', 'bellavista', 'marcavelica', 'querecotillo', 'lancones', 'miguel checa', 'salitral', 'piura', 'mallares'].some((term) => text.includes(term));
-  const sensitive = ['accidente', 'delito', 'fallec', 'muere', 'muerto', 'muerta', 'denuncia', 'emergencia', 'acusaci', 'asesin', 'muerte', 'politica', 'política'].some((term) => text.includes(term));
+  const sensitive = SENSITIVE_TERMS.some((term) => text.includes(term));
   return { status: local ? (sensitive ? 'VERIFY' : 'RELEVANT') : 'NOT_RELEVANT', verification: sensitive ? 'VERIFY' : 'UNVERIFIED', category_slug: sectionFor(value), sensitive };
 }
 
