@@ -12,8 +12,8 @@ on:
         type: boolean
         default: true
   schedule:
-    # Intervalo probado en Actions; la concurrencia evita solapamientos.
-    - cron: "*/30 * * * *"
+    # Aproximadamente cada 30 minutos, fuera de :00/:30 para reducir retrasos.
+    - cron: "7,37 * * * *"
   workflow_dispatch:
     inputs:
       scope:
