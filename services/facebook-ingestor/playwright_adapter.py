@@ -88,6 +88,12 @@ def _clean_line(value: str) -> str:
     return re.sub(r"\s+", " ", str(value or "").replace("\xa0", " ")).strip()
 
 
+def _text_signature(value: str) -> set[str]:
+    normalized = html.unescape(str(value or "")).lower()
+    normalized = re.sub(r"[^a-záéíóúüñ0-9]+", " ", normalized)
+    return {token for token in normalized.split() if len(token) >= 4}
+
+
 def _reaction_boundary_index(lines: list[str]) -> int:
     for index, line in enumerate(lines):
         lowered = _clean_line(line).lower()
@@ -558,6 +564,15 @@ class PlaywrightFacebookSourceAdapter:
             r'"story_fbid"\s*:\s*"?([A-Za-z0-9_.-]+)',
             r'FeedUnit[_:-]([A-Za-z0-9_.-]+)',
         )
+        try:
+            markup = article.inner_html(timeout=2500)
+            values.append(markup)
+            for href in re.findall(r"(?:href|url)=[\"']([^\"']+)", markup, flags=re.I):
+                candidate = _canonical_post_url(urljoin("https://www.facebook.com/", html.unescape(href)))
+                if candidate and _post_id(candidate):
+                    return candidate
+        except Exception:
+            pass
         for value in values:
             for pattern in patterns:
                 match = re.search(pattern, value, re.I)
@@ -566,6 +581,49 @@ class PlaywrightFacebookSourceAdapter:
                 post_id = match.group(1).strip()
                 if post_id and post_id not in {identifier, "0"}:
                     return _canonical_post_url(f"https://www.facebook.com/{identifier}/posts/{post_id}")
+        return None
+
+    @staticmethod
+    def _photo_permalink_for_text(page: Any, identifier: str, source_name: str, article_text: str) -> str | None:
+        """Associate a visible post image link with a feed card lacking anchors.
+
+        Facebook's anonymous layout can render the post card without an
+        ``<a>`` permalink while leaving the public photo link in a sibling
+        wrapper. We require the source name and several matching caption words
+        from the same visible DOM context before accepting that photo URL.
+        """
+        try:
+            items = page.locator("a[href*='/photo/']").evaluate_all(
+                """nodes => nodes.slice(0, 120).map(node => {
+                    const contexts = [];
+                    let current = node;
+                    for (let depth = 0; current && depth < 12; depth += 1, current = current.parentElement) {
+                        const text = (current.innerText || '').replace(/\\s+/g, ' ').trim();
+                        if (text.length >= 60 && text.length <= 7000) contexts.push(text);
+                    }
+                    return { href: node.href || '', contexts };
+                })"""
+            )
+        except Exception:
+            return None
+        source_tokens = _text_signature(source_name)
+        article_tokens = _text_signature(article_text)
+        if not article_tokens:
+            return None
+        for item in items if isinstance(items, list) else []:
+            if not isinstance(item, dict):
+                continue
+            candidate = _canonical_post_url(str(item.get("href") or ""))
+            if not candidate or not _post_id(candidate):
+                continue
+            for context in item.get("contexts") if isinstance(item.get("contexts"), list) else []:
+                context_text = str(context or "")
+                context_tokens = _text_signature(context_text)
+                if source_tokens and not source_tokens.issubset(context_tokens):
+                    continue
+                overlap = len(article_tokens & context_tokens)
+                if overlap >= max(3, min(6, len(article_tokens) // 4 or 3)):
+                    return candidate
         return None
 
     def _timestamp_permalink(self, page: Any, article: Any, identifier: str) -> str | None:
@@ -730,9 +788,14 @@ class PlaywrightFacebookSourceAdapter:
     def _extract_article(self, article: Any, source: dict[str, Any], identifier: str, page: Any | None = None) -> dict[str, Any] | None:
         try:
             self._expand_visible_text(article, page)
+            lines = [_clean_line(line) for line in article.inner_text(timeout=self.timeout * 1000).splitlines()]
+            date_index, date_label = self._date_label(lines)
+            text = self._text_from_lines(lines, date_index, str(source.get("name") or ""))
             permalink = self._permalink(article, identifier) or self._dom_permalink(article, identifier)
             if not permalink and page is not None:
                 permalink = self._timestamp_permalink(page, article, identifier)
+            if not permalink and page is not None:
+                permalink = self._photo_permalink_for_text(page, identifier, str(source.get("name") or ""), text)
             if not permalink:
                 logger.info(
                     "source=%s article_skip=no_permalink anchors=%d",
@@ -740,9 +803,6 @@ class PlaywrightFacebookSourceAdapter:
                     article.locator("a").count(),
                 )
                 return None
-            lines = [_clean_line(line) for line in article.inner_text(timeout=self.timeout * 1000).splitlines()]
-            date_index, date_label = self._date_label(lines)
-            text = self._text_from_lines(lines, date_index, str(source.get("name") or ""))
             if not text or not date_label:
                 logger.info(
                     "source=%s article_skip=missing_fields date=%s date_index=%d text_len=%d lines=%d",

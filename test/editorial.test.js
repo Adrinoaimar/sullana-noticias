@@ -13,3 +13,9 @@ test('editorial copy keeps all visible facts while changing the presentation', (
   assert.notEqual(copy.body, cleanSourceText(raw));
   assert.ok(copy.metaDescription.length <= 155);
 });
+
+test('editorial copy preserves numeric dots inside a sentence', () => {
+  const copy = buildEditorialCopy('El médico recibió S/1.000 para adelantar la operación.', 'El Chilalo Noticias');
+  assert.match(copy.body, /S\/1\.000 para adelantar la operación/);
+  assert.doesNotMatch(copy.body, /S\/1\. El mismo reporte/);
+});

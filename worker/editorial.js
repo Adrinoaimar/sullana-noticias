@@ -27,8 +27,9 @@ export function cleanSourceText(value) {
 }
 
 function sentences(value) {
-  return cleanSourceText(value)
-    .match(/[^.!?]+(?:[.!?]+|$)/g)?.map((part) => part.trim()).filter(Boolean) || [];
+  const protectedDots = cleanSourceText(value).replace(/(?<=\d)\.(?=\d)/g, '__DECIMAL_DOT__');
+  return protectedDots
+    .match(/[^.!?]+(?:[.!?]+|$)/g)?.map((part) => part.replaceAll('__DECIMAL_DOT__', '.').trim()).filter(Boolean) || [];
 }
 
 function normalizeSentence(value) {
