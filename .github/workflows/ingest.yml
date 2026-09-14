@@ -2,7 +2,8 @@ name: Sullana Noticias · ingesta pública
 
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    # Desplazado de :00/:30 para reducir retrasos por congestión de Actions.
+    - cron: "17,47 * * * *"
   workflow_dispatch:
     inputs:
       scope:
