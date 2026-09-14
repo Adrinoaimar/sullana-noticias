@@ -116,3 +116,7 @@ CUA abrió [El Chilalo Noticias](https://www.facebook.com/ElChilaloNoticias) sin
 Se reforzó el clasificador para reconocer términos electorales como `encuestas`, `candidato`, `elección`, `votación`, `alcalde` y `gobernador`. Esas capturas ahora se envían a `politica-local` con estado `VERIFY`; una publicación política nacional continúa en `presidencia`. La prueba unitaria cubre ambos casos. No se alteraron artículos históricos ni la regla de publicación segura: el cambio evita que nuevas publicaciones políticas se autopubliquen como `Actualidad`.
 
 La navegación pública ahora también enlaza `Política local`, manteniendo esa sección separada de `Actualidad` y protegida de la publicación masiva segura.
+
+## Nueva verificación pública — 2026-09-14
+
+La corrida `34880472749` terminó `SUCCESS`: leyó 9 fuentes activas desde D1, capturó 8 posts públicos reales de El Chilalo y El Churre, creó 2 nuevos, conservó 38 imágenes y registró 0 errores. CUA volvió a observar en Facebook contenido marcado como `Compartido con: Público`, incluido el post de El Chilalo con `fbid=1124869189875702` y la transmisión pública de El Churre sobre un incendio en Nueva Sullana. La captura se limita al texto, fecha y enlace visible; comentarios y reacciones no son necesarios para aceptar el post.
