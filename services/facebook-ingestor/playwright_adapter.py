@@ -1111,11 +1111,17 @@ class PlaywrightFacebookSourceAdapter:
                 if len(posts) < self.page_limit and video_candidates:
                     detail_page = context.new_page()
                     detail_page.set_default_timeout(self.timeout * 1000)
+                    attempted_video_ids: set[str] = set()
                     try:
                         max_video_pages = min(len(video_candidates), self.page_limit * 2)
                         for video_url in video_candidates[:max_video_pages]:
                             if len(posts) >= self.page_limit:
                                 break
+                            video_id = _post_id(video_url)
+                            if video_id and video_id in attempted_video_ids:
+                                continue
+                            if video_id:
+                                attempted_video_ids.add(video_id)
                             try:
                                 detail_page.goto(video_url, wait_until="domcontentloaded", timeout=self.timeout * 1000)
                                 detail_page.wait_for_timeout(1400)
