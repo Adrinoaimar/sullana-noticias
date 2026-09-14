@@ -20,6 +20,11 @@ on:
         options:
           - all
           - chilalo-churre
+      publish_safe:
+        description: "Publicar automáticamente solo contenido no sensible"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -48,6 +53,7 @@ jobs:
           SULLANA_INGEST_TOKEN: ${{ secrets.SULLANA_INGEST_TOKEN }}
           FACEBOOK_STORAGE_STATE_B64: ${{ secrets.FACEBOOK_STORAGE_STATE_B64 }}
           SULLANA_SCOPE: ${{ inputs.scope || 'all' }}
+          SULLANA_PUBLISH_SAFE: ${{ inputs.publish_safe == '' && 'true' || inputs.publish_safe }}
         run: |
           if command -v xvfb-run >/dev/null 2>&1; then
             export PLAYWRIGHT_HEADLESS=0
@@ -95,7 +101,8 @@ jobs:
           if not run.stdout.strip():
               raise SystemExit(run.stderr or "adapter returned no JSON")
           payload = json.loads(run.stdout)
-          payload["publish_safe"] = True
+          publish_safe = os.environ.get("SULLANA_PUBLISH_SAFE", "true").strip().lower() not in {"0", "false", "no"}
+          payload["publish_safe"] = publish_safe
           body = json.dumps(payload).encode()
           req = urllib.request.Request(endpoint, data=body, method="POST", headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "User-Agent": "SullanaNoticiasIngest/1.0"})
           # Larger regional batches may take longer while D1 creates drafts and
@@ -104,7 +111,7 @@ jobs:
           with urllib.request.urlopen(req, timeout=180) as response:
               result = json.loads(response.read())
               media = [item for post in payload.get("posts", []) for item in post.get("media", []) if isinstance(item, dict)]
-              print(json.dumps({"http_status": response.status, "status": result.get("status"), "posts_found": result.get("posts_found"), "new_posts": result.get("new_posts"), "media_items": len(media), "media_images": sum(item.get("kind") == "image" for item in media), "media_videos": sum(item.get("kind") == "video" for item in media), "errors": len(result.get("errors", [])), "safe_publication": result.get("safe_publication")}))
+              print(json.dumps({"http_status": response.status, "status": result.get("status"), "posts_found": result.get("posts_found"), "new_posts": result.get("new_posts"), "media_items": len(media), "media_images": sum(item.get("kind") == "image" for item in media), "media_videos": sum(item.get("kind") == "video" for item in media), "publish_safe": publish_safe, "errors": len(result.get("errors", [])), "safe_publication": result.get("safe_publication")}))
           if payload.get("errors") and not payload.get("posts"):
               raise SystemExit("No public posts were parsed; see adapter errors above")
           PY
