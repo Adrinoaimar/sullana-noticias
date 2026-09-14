@@ -609,7 +609,9 @@ class PlaywrightFacebookSourceAdapter:
         source_tokens = _text_signature(source_name)
         article_tokens = _text_signature(article_text)
         if not article_tokens:
+            logger.info("source=%s photo_context_match=none candidates=%d text_len=0", identifier, len(items) if isinstance(items, list) else 0)
             return None
+        max_overlap = 0
         for item in items if isinstance(items, list) else []:
             if not isinstance(item, dict):
                 continue
@@ -620,6 +622,7 @@ class PlaywrightFacebookSourceAdapter:
                 context_text = str(context or "")
                 context_tokens = _text_signature(context_text)
                 overlap = len(article_tokens & context_tokens)
+                max_overlap = max(max_overlap, overlap)
                 source_match = bool(source_tokens and source_tokens.issubset(context_tokens))
                 threshold = max(3, min(6, len(article_tokens) // 4 or 3))
                 # Anonymous Facebook wrappers may omit the page name from
@@ -628,6 +631,7 @@ class PlaywrightFacebookSourceAdapter:
                 if (source_match and overlap >= threshold) or overlap >= max(5, threshold + 2):
                     logger.info("source=%s permalink_resolved_via_photo_context post_id=%s overlap=%d source_match=%s", identifier, _post_id(candidate), overlap, source_match)
                     return candidate
+        logger.info("source=%s photo_context_match=none candidates=%d text_len=%d max_overlap=%d", identifier, len(items) if isinstance(items, list) else 0, len(article_text), max_overlap)
         return None
 
     def _timestamp_permalink(self, page: Any, article: Any, identifier: str) -> str | None:
@@ -802,9 +806,10 @@ class PlaywrightFacebookSourceAdapter:
                 permalink = self._photo_permalink_for_text(page, identifier, str(source.get("name") or ""), text)
             if not permalink:
                 logger.info(
-                    "source=%s article_skip=no_permalink anchors=%d",
+                    "source=%s article_skip=no_permalink anchors=%d text_len=%d",
                     source.get("name", "unknown"),
                     article.locator("a").count(),
+                    len(text),
                 )
                 return None
             if not text or not date_label:
