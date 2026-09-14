@@ -297,7 +297,16 @@ class PlaywrightFacebookSourceAdapter:
             line = re.sub(r"\s*(?:…|\.\.\.)?\s*See more\s*$", "", line, flags=re.I).strip()
             if had_see_more and len(line) <= 3:
                 continue
-            if _RELATIVE_DATE.fullmatch(line) or re.search(r"\b\d{4}\b", line) and re.search(r"[A-Za-záéíóú]", line):
+            is_date = bool(
+                _RELATIVE_DATE.fullmatch(line)
+                or re.search(r"\b\d{4}\b", line) and re.search(r"[A-Za-záéíóú]", line)
+                or re.search(r"\b\d{1,2}[/-]\d{1,2}[/-]\d{4}\b", line)
+            )
+            # A second visible timestamp marks the next feed item. Stop
+            # before it so a broad anonymous wrapper cannot merge captions.
+            if is_date and content:
+                break
+            if is_date:
                 continue
             if line and line not in content:
                 content.append(line)
@@ -1022,10 +1031,15 @@ class PlaywrightFacebookSourceAdapter:
 
         def add_post(post: dict[str, Any]) -> None:
             """Keep one best visible representation per post id or URL."""
+            text_key = re.sub(r"\s+", " ", str(post.get("text") or "")).strip().casefold()
+            date_key = str(post.get("published_at") or "").strip().casefold()
             for index, existing in enumerate(posts):
                 same_id = post.get("post_id") and existing.get("post_id") == post.get("post_id")
                 same_url = post.get("post_url") and existing.get("post_url") == post.get("post_url")
-                if not (same_id or same_url):
+                existing_text_key = re.sub(r"\s+", " ", str(existing.get("text") or "")).strip().casefold()
+                existing_date_key = str(existing.get("published_at") or "").strip().casefold()
+                same_content = bool(text_key and len(text_key) >= 40 and text_key == existing_text_key and date_key == existing_date_key)
+                if not (same_id or same_url or same_content):
                     continue
                 if len(str(post.get("text") or "")) > len(str(existing.get("text") or "")) or len(post.get("media") or []) > len(existing.get("media") or []):
                     posts[index] = post
