@@ -286,6 +286,46 @@ async function createDraft(db, raw) {
   return { id: result.meta?.last_row_id, verification_status: verification };
 }
 
+async function refreshImprovedRawPost(db, raw, source, post, hash, media, image) {
+  const nextText = String(post.text || '').trim();
+  const previousText = String(raw.text || '').trim();
+  let previousMedia = [];
+  try { previousMedia = JSON.parse(raw.media_json || '[]'); } catch { previousMedia = []; }
+  const betterText = nextText.length > previousText.length;
+  const betterMedia = media.length > (Array.isArray(previousMedia) ? previousMedia.length : 0) || (!raw.image_url && image);
+  if (!betterText && !betterMedia) return false;
+  const mediaToStore = media.length >= (Array.isArray(previousMedia) ? previousMedia.length : 0) ? media : previousMedia;
+  const imageToStore = image || raw.image_url || null;
+
+  const hashOwner = await dbFirst(db, 'SELECT id FROM raw_posts WHERE content_hash=? AND id<>?', hash, raw.id);
+  const nextHash = hashOwner ? raw.content_hash : hash;
+  const draft = await dbFirst(db, 'SELECT * FROM news_drafts WHERE raw_post_id=?', raw.id);
+  const article = draft && await dbFirst(db, 'SELECT * FROM articles WHERE draft_id=?', draft.id);
+  const generatedDraft = draft && (
+    String(draft.body || '') === previousText ||
+    String(draft.summary || '') === previousText ||
+    String(draft.dek || '') === 'Borrador pendiente de revisión editorial.'
+  );
+  const generatedArticle = article && (
+    String(article.body || '') === previousText ||
+    String(article.summary || '') === previousText ||
+    String(article.dek || '') === 'Borrador pendiente de revisión editorial.'
+  );
+
+  await dbRun(db, `UPDATE raw_posts SET external_post_id=COALESCE(?,external_post_id), text=?, post_url=?, image_url=?, media_json=?, published_at=COALESCE(?,published_at), fetched_at=?, content_hash=? WHERE id=?`, post.post_id || null, nextText || previousText, post.post_url || raw.post_url, imageToStore, JSON.stringify(mediaToStore), post.published_at || null, now(), nextHash, raw.id);
+
+  if (generatedDraft || generatedArticle) {
+    const editorial = buildEditorialCopy(nextText || previousText, source.name);
+    if (generatedDraft && editorial.body) {
+      await dbRun(db, `UPDATE news_drafts SET dek=?,summary=?,body=?,meta_description=?,original_post_url=?,original_published_at=COALESCE(?,original_published_at),image_type=?,image_url=?,media_json=?,updated_at=? WHERE id=?`, editorial.summary, editorial.summary, editorial.body, editorial.metaDescription, post.post_url || raw.post_url, post.published_at || null, imageToStore ? 'SOURCE_IMAGE' : draft.image_type, imageToStore, JSON.stringify(mediaToStore), now(), draft.id);
+    }
+    if (generatedArticle && editorial.body) {
+      await dbRun(db, `UPDATE articles SET dek=?,summary=?,body=?,meta_description=?,original_post_url=?,original_published_at=COALESCE(?,original_published_at),image_type=?,image_url=?,media_json=?,modified_at=? WHERE draft_id=?`, editorial.summary, editorial.summary, editorial.body, editorial.metaDescription, post.post_url || article.original_post_url, post.published_at || null, imageToStore ? 'SOURCE_IMAGE' : article.image_type, imageToStore, JSON.stringify(mediaToStore), now(), article.draft_id);
+    }
+  }
+  return true;
+}
+
 async function refreshUneditedEditorial(db) {
   const rows = await dbRows(db, `SELECT d.id, d.raw_post_id, r.text, s.name AS source_name
     FROM news_drafts d
@@ -371,10 +411,15 @@ async function persistIngest(env, payload, requestOrigin) {
     const result = await dbRun(db, insert, source.id, post.post_id || null, post.text || '', post.post_url, image, JSON.stringify(media), post.published_at || null, now(), hash, check.status, check.verification, post.likes ?? null, post.comments ?? null, post.shares ?? null, JSON.stringify(post.reactions || null));
     if (!result.meta?.changes) {
       duplicates += 1;
-      if (source.auto_draft && check.status !== 'NOT_RELEVANT') {
-        const raw = await dbFirst(db, 'SELECT * FROM raw_posts WHERE content_hash=?', hash);
-        const existingDraft = raw && await dbFirst(db, 'SELECT id FROM news_drafts WHERE raw_post_id=?', raw.id);
-        if (raw && !existingDraft) {
+      const raw = await dbFirst(db, `SELECT * FROM raw_posts
+        WHERE (source_id=? AND external_post_id=? AND external_post_id IS NOT NULL)
+           OR post_url=? OR content_hash=? LIMIT 1`, source.id, post.post_id || null, post.post_url, hash);
+      if (raw) {
+        try { await refreshImprovedRawPost(db, raw, source, post, hash, media, image); } catch (error) { errors.push(`${source.name}: ${error.message}`); }
+      }
+      if (source.auto_draft && check.status !== 'NOT_RELEVANT' && raw) {
+        const existingDraft = await dbFirst(db, 'SELECT id FROM news_drafts WHERE raw_post_id=?', raw.id);
+        if (!existingDraft) {
           try { await createDraft(db, raw); } catch (error) { errors.push(`${source.name}: ${error.message}`); }
         }
       }
