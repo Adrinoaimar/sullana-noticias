@@ -70,3 +70,9 @@ La corrección de clasificación permite que publicaciones de medios `TRUSTED_ME
 La capa de enlaces también acepta permalinks públicos `/photo/?fbid=...` cuando Facebook no entrega `/posts/`; conserva el `fbid` y la URL canónica para evitar perder publicaciones visibles o duplicarlas.
 
 La corrida `34804183174` terminó con GitHub Actions en estado `success`: Playwright encontró un post de El Churre y uno de Chilalo, el Worker respondió HTTP 200, D1 registró `posts_found=5`, `new_posts=1` y `media_images=24`, y quedó un error de fuente separado. El panel mostró 8 posts detectados, 3 borradores y 1 artículo publicado. El Churre sigue pausada hasta activación editorial.
+
+## Contextos públicos y portada con varias noticias — 2026-09-14
+
+El commit `28fc613` añadió `captured_via=photo_context`: cuando el DOM anónimo no expone `role=article`, Playwright toma únicamente el contexto visible compartido por la foto pública, exige texto, fecha y URL del mismo contexto, y conserva referencias públicas de imágenes. La corrida `34856961539` terminó `SUCCESS` con 14 posts reales, 4 nuevos, 51 imágenes y 0 errores; D1 respondió HTTP 200 y el flujo creó/publicó 4 candidatos seguros.
+
+La versión 51 (`cc7aa33`) mantiene producción estable y actualiza una redacción generada solo si llega una captura más completa, sin sobreescribir ediciones manuales. El commit `993af19` excluye fotos de portada/perfil por sus etiquetas accesibles y deduplica en memoria por `post_id` o URL conservando la versión más completa. La corrida `34858224156` terminó `SUCCESS` con 12 posts reales de Chilalo/Churre, 2 nuevos, 50 imágenes, 0 errores y 2 publicaciones seguras. Smoke live confirmó health OK, 30 tarjetas públicas y 30 ítems RSS; Meta continúa `PENDING_EXTERNAL`.
