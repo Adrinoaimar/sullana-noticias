@@ -235,6 +235,20 @@ async function createDraft(db, raw) {
   return { id: result.meta?.last_row_id, verification_status: verification };
 }
 
+const SAFE_BULK_CATEGORIES = new Set(['actualidad', 'servicios', 'educacion', 'deportes', 'eventos', 'economia', 'empleo', 'comunidad', 'entretenimiento']);
+
+async function publishDraftRecord(db, requestOrigin, item) {
+  const canonical = `${requestOrigin}/noticias/${item.slug}`;
+  const result = await dbRun(db, 'INSERT OR IGNORE INTO articles (draft_id,category_id,title,dek,summary,body,keywords,meta_title,meta_description,slug,canonical_url,source_name,source_url,original_post_url,original_published_at,image_type,image_url,media_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', item.id, item.category_id, item.title, item.dek, item.summary, item.body, item.keywords, item.meta_title, item.meta_description, item.slug, canonical, item.source_name, item.source_url, item.original_post_url, item.original_published_at, item.image_type, item.image_url, item.media_json || '[]');
+  const article = result.meta?.changes ? await dbFirst(db, 'SELECT * FROM articles WHERE id=?', result.meta.last_row_id) : await dbFirst(db, 'SELECT * FROM articles WHERE draft_id=?', item.id);
+  if (!article) throw new Error('ARTICLE_NOT_CREATED');
+  if (result.meta?.changes) {
+    await dbRun(db, 'UPDATE news_drafts SET editorial_status=\'PUBLISHED\',verification_status=\'VERIFIED\',updated_at=? WHERE id=?', now(), item.id);
+    await dbRun(db, 'UPDATE raw_posts SET processing_status=\'PUBLISHED\',verification_status=\'VERIFIED\' WHERE id=?', item.raw_post_id);
+  }
+  return { article, created: Boolean(result.meta?.changes) };
+}
+
 async function persistIngest(env, payload) {
   const db = env.DB;
   if (!db) return { status: 'ERROR', error: 'DATABASE_NOT_CONFIGURED' };
@@ -298,7 +312,8 @@ async function adminPage(env, request) {
     .replace('})();</script>', '})();});</script>');
   const analyticsScript = String.raw`<script>(()=>{const q=s=>document.querySelector(s),esc=v=>String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");const load=async()=>{if(q("#app")?.classList.contains("hidden"))return;try{const d=await fetch("/api/admin/dashboard").then(r=>r.json());q("#analytics").innerHTML="<p><strong>Visitas hoy:</strong> "+esc(d.visits_today)+" · <strong>Compartidos hoy:</strong> "+esc(d.analytics?.shares_today??0)+"</p>"+(d.analytics?.top_articles||[]).map(x=>"<div class=\"item\"><strong>"+esc(x.title)+"</strong><span class=\"badge\">"+esc(x.view_count)+" vistas</span></div>").join("")||"<p>Aún no hay visitas registradas.</p>";const m=d.monetization||{};q("#monetization").innerHTML="<p><strong>Red:</strong> "+esc(m.network)+"</p><p><strong>Estado:</strong> "+esc(m.configured?"Configurada por secreto":"PENDING_EXTERNAL")+" · <strong>Ingresos:</strong> "+esc(m.revenue)+"</p>"}catch{}};const timer=setInterval(()=>{load();if(!q("#app")?.classList.contains("hidden"))clearInterval(timer)},500)})();</script>`;
   const kpiScript = String.raw`<script>(()=>{const q=s=>document.querySelector(s),e=v=>String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");const load=async()=>{if(q("#app")?.classList.contains("hidden"))return;try{const d=await fetch("/api/admin/dashboard").then(r=>r.json());const m=d.monetization||{},t=d.traffic||{};q("#metrics").innerHTML=[["Visitas hoy",d.visits_today],["Artículos hoy",d.articles_today],["Fuentes revisadas",d.sources_checked_today],["Posts",d.posts_detected],["Publicados",d.published],["Borradores",d.drafts],["Tráfico social",t.social_today],["Tráfico Google",t.google_today],["Ingresos ads",m.revenue]].map(x=>"<div class=\"metric\"><small>"+e(x[0])+"</small><strong>"+e(x[1])+"</strong></div>").join("")}catch{}};setTimeout(load,1200);setTimeout(load,2500)})();</script>`;
-  return html(layout(env, request, 'Panel editorial · Sullana Noticias', 'Panel de revisión editorial.', body, `${deferredScript}${analyticsScript}${kpiScript}`));
+  const safePublishScript = String.raw`<script>document.addEventListener("DOMContentLoaded",()=>{const drafts=document.querySelector("#drafts");if(!drafts)return;const api=async()=>{const response=await fetch("/api/admin/drafts/publish-safe",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({confirm:true})}),data=await response.json().catch(()=>({}));if(!response.ok)throw Error(data.message||data.error||"REQUEST_FAILED");return data};const install=()=>{if(drafts.querySelector("#publish-safe"))return;const panel=document.createElement("div");panel.className="item";panel.innerHTML="<strong>Publicación segura</strong><p>Publica solo borradores relevantes y no sensibles. Se omiten seguridad, asaltos, emergencias, presidencia y denuncias.</p><button id=\"publish-safe\" class=\"button dark\">Publicar borradores no sensibles</button><p id=\"publish-safe-status\" class=\"meta\"></p>";drafts.prepend(panel)};new MutationObserver(install).observe(drafts,{childList:true});install();drafts.addEventListener("click",async event=>{const button=event.target.closest("#publish-safe");if(!button||!confirm("Se publicarán solo borradores locales no sensibles. ¿Confirmas?"))return;button.disabled=true;const status=drafts.querySelector("#publish-safe-status");if(status)status.textContent="Publicando...";try{const data=await api();if(status)status.textContent="Publicadas: "+data.published+" · omitidas para revisión: "+data.skipped+".";window.setTimeout(()=>window.location.reload(),700)}catch(error){if(status)status.textContent=error.message;button.disabled=false}})});</script>`;
+  return html(layout(env, request, 'Panel editorial · Sullana Noticias', 'Panel de revisión editorial.', body, `${deferredScript}${analyticsScript}${kpiScript}${safePublishScript}`));
 }
 
 export default {
@@ -343,8 +358,30 @@ export default {
         if (rawDraft && request.method === 'POST') { const raw=await dbFirst(env.DB,'SELECT * FROM raw_posts WHERE id=?',Number(rawDraft[1])); if(!raw)return json({error:'RAW_POST_NOT_FOUND'},404); const existing=await dbFirst(env.DB,'SELECT * FROM news_drafts WHERE raw_post_id=?',raw.id); return json(existing||await createDraft(env.DB,raw),existing?200:201); }
         const draft = url.pathname.match(/^\/api\/admin\/drafts\/(\d+)$/);
         if (draft && request.method === 'PUT') { const body=await bodyJson(request); await dbRun(env.DB,'UPDATE news_drafts SET title=?,dek=?,body=?,category_id=COALESCE((SELECT id FROM categories WHERE slug=?),category_id),meta_title=?,meta_description=?,updated_at=? WHERE id=?',String(body.title||''),String(body.dek||''),String(body.body||''),String(body.category_slug||'actualidad'),String(body.meta_title||body.title||''),String(body.meta_description||body.dek||''),now(),Number(draft[1])); return json(await dbFirst(env.DB,'SELECT * FROM news_drafts WHERE id=?',Number(draft[1]))); }
+        if (url.pathname === '/api/admin/drafts/publish-safe' && request.method === 'POST') {
+          const body = await bodyJson(request);
+          if (body.confirm !== true) return json({ error: 'CONFIRMATION_REQUIRED', message: 'Confirma la publicación segura desde el panel.' }, 400);
+          const candidates = await dbRows(env.DB, "SELECT d.*,c.slug AS category_slug,s.trust_level AS source_trust_level FROM news_drafts d LEFT JOIN categories c ON c.id=d.category_id LEFT JOIN sources s ON s.id=d.source_id WHERE d.editorial_status='DRAFT' ORDER BY d.updated_at DESC LIMIT 50");
+          let published = 0;
+          let alreadyPublished = 0;
+          let skipped = 0;
+          let failed = 0;
+          for (const item of candidates) {
+            const check = classify(item.summary || item.body || item.title, { trust_level: item.source_trust_level });
+            if (!SAFE_BULK_CATEGORIES.has(String(item.category_slug || '')) || check.status !== 'RELEVANT' || check.sensitive) { skipped += 1; continue; }
+            try {
+              const result = await publishDraftRecord(env.DB, originOf(request), item);
+              if (result.created) published += 1; else alreadyPublished += 1;
+            } catch (error) {
+              failed += 1;
+              console.error('bulk_safe_publish', item.id, error.message);
+            }
+          }
+          await dbRun(env.DB, 'INSERT INTO events (event_name,metadata_json) VALUES (?,?)', 'bulk_safe_publish', JSON.stringify({ candidates: candidates.length, published, already_published: alreadyPublished, skipped, failed }));
+          return json({ ok: true, candidates: candidates.length, published, already_published: alreadyPublished, skipped, failed });
+        }
         const publish = url.pathname.match(/^\/api\/admin\/drafts\/(\d+)\/publish$/);
-        if (publish && request.method === 'POST') { const body=await bodyJson(request); const item=await dbFirst(env.DB,'SELECT * FROM news_drafts WHERE id=?',Number(publish[1])); if(!item)return json({error:'DRAFT_NOT_FOUND'},404); if(item.verification_status==='VERIFY'&&body.verified!==true)return json({error:'VERIFICATION_REQUIRED'},409); const canonical=`${originOf(request)}/noticias/${item.slug}`; const result=await dbRun(env.DB,'INSERT INTO articles (draft_id,category_id,title,dek,summary,body,keywords,meta_title,meta_description,slug,canonical_url,source_name,source_url,original_post_url,original_published_at,image_type,image_url,media_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',item.id,item.category_id,item.title,item.dek,item.summary,item.body,item.keywords,item.meta_title,item.meta_description,item.slug,canonical,item.source_name,item.source_url,item.original_post_url,item.original_published_at,item.image_type,item.image_url,item.media_json || '[]'); await dbRun(env.DB,'UPDATE news_drafts SET editorial_status=\'PUBLISHED\',verification_status=\'VERIFIED\',updated_at=? WHERE id=?',now(),item.id); await dbRun(env.DB,'UPDATE raw_posts SET processing_status=\'PUBLISHED\',verification_status=\'VERIFIED\' WHERE id=?',item.raw_post_id); return json({article:await dbFirst(env.DB,'SELECT * FROM articles WHERE id=?',result.meta?.last_row_id)},201); }
+        if (publish && request.method === 'POST') { const body=await bodyJson(request); const item=await dbFirst(env.DB,'SELECT * FROM news_drafts WHERE id=?',Number(publish[1])); if(!item)return json({error:'DRAFT_NOT_FOUND'},404); if(item.verification_status==='VERIFY'&&body.verified!==true)return json({error:'VERIFICATION_REQUIRED'},409); const result=await publishDraftRecord(env.DB, originOf(request), item); return json({article:result.article},result.created?201:200); }
         return json({error:'NOT_FOUND'},404);
       }
       if (url.pathname === '/sitemap.xml') { const articles=await articleRows(env,100); const base=originOf(request); return text(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${esc(base)}/</loc></url>${articles.map((item)=>`<url><loc>${esc(base)}/noticias/${esc(item.slug)}</loc><lastmod>${esc(item.modified_at)}</lastmod></url>`).join('')}</urlset>`,'application/xml; charset=utf-8',200,{'cache-control':'public,max-age=300'}); }
