@@ -100,3 +100,9 @@ El commit `1e5722c` deduplica captions largos que Facebook expone con etiquetas 
 La corrida `34872991032` terminó `SUCCESS`: leyó 9 fuentes activas desde D1, capturó 7 posts públicos reales de Chilalo/Churre, 37 referencias de imagen y 0 errores; `new_posts=0` confirmó deduplicación en la repetición. Health posterior: `WEB=OK`, `D1=OK`, `PLAYWRIGHT_ADAPTER`, `META_GRAPH=PENDING_EXTERNAL`.
 
 La portada en producción devuelve 30 tarjetas y 30 URLs únicas. En viewport móvil la grilla es de una columna y por eso se ve una tarjeta por pantalla; `Ver todo` muestra el archivo completo. No se modificaron D1, autenticación, RSS, sitemap ni el dominio público.
+
+## Scheduler y secciones sensibles — 2026-09-14
+
+El commit `9c4a44a` desplazó el cron del workflow principal a `17,47 * * * *` (aproximadamente cada 30 minutos) para evitar picos de carga de GitHub. La prueba `34876060345` sobre `main` terminó `SUCCESS` en 2m39s: 9 fuentes activas desde D1, 10 posts reales, 4 nuevos, 4 publicaciones seguras y 0 errores. Tras observar `:47`, no apareció un evento `schedule`; GitHub mantiene el workflow activo y el disparador manual sirve como respaldo.
+
+La auditoría live de categorías encontró publicaciones públicas en Actualidad y Servicios. Presidencia, Asaltos, Seguridad y Emergencias permanecen sin artículos públicos porque sus borradores sensibles están en `VERIFY`; no se autopublican acusaciones, delitos, accidentes ni política. Los enlaces y categorías sí están creados.
