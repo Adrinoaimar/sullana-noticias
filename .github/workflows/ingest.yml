@@ -48,7 +48,8 @@ jobs:
           req = urllib.request.Request(endpoint, data=body, method="POST", headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "User-Agent": "SullanaNoticiasIngest/1.0"})
           with urllib.request.urlopen(req, timeout=30) as response:
               result = json.loads(response.read())
-              print(json.dumps({"http_status": response.status, "status": result.get("status"), "posts_found": result.get("posts_found"), "new_posts": result.get("new_posts"), "errors": len(result.get("errors", []))}))
+              media = [item for post in payload.get("posts", []) for item in post.get("media", []) if isinstance(item, dict)]
+              print(json.dumps({"http_status": response.status, "status": result.get("status"), "posts_found": result.get("posts_found"), "new_posts": result.get("new_posts"), "media_items": len(media), "media_images": sum(item.get("kind") == "image" for item in media), "media_videos": sum(item.get("kind") == "video" for item in media), "errors": len(result.get("errors", []))}))
           if payload.get("errors") and not payload.get("posts"):
               raise SystemExit("No public posts were parsed; see adapter errors above")
           PY
