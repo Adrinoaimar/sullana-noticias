@@ -338,13 +338,13 @@ class PlaywrightFacebookSourceAdapter:
             anchors = article.locator("a")
             fallback_anchor = None
             anchor_summary: list[dict[str, Any]] = []
-            anchor_data = anchors.evaluate_all(
-                """nodes => nodes.slice(0, 16).map(node => ({
-                    href: node.getAttribute('href') || '',
-                    text: node.textContent || '',
-                    aria: node.getAttribute('aria-label') || '',
-                    title: node.getAttribute('title') || '',
-                    tooltip: node.getAttribute('data-tooltip-content') || ''
+            anchor_data = article.evaluate(
+                """node => Array.from(node.querySelectorAll('a')).slice(0, 16).map(anchor => ({
+                    href: anchor.getAttribute('href') || '',
+                    text: anchor.textContent || '',
+                    aria: anchor.getAttribute('aria-label') || '',
+                    title: anchor.getAttribute('title') || '',
+                    tooltip: anchor.getAttribute('data-tooltip-content') || ''
                 }))"""
             )
             for index, item in enumerate(anchor_data if isinstance(anchor_data, list) else []):
