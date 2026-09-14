@@ -68,3 +68,5 @@ La fuente [El Churre Noticias - Sullana](https://www.facebook.com/elchurrenotici
 La corrección de clasificación permite que publicaciones de medios `TRUSTED_MEDIA` entren al borrador aunque el texto no mencione literalmente Sullana o Piura. En la segunda corrida se promovió a `DRAFT · VERIFY` un post real de El Chilalo con texto, fecha visible, fuente, URL original y una referencia pública de imagen. La portada mantiene solo el artículo publicado hasta que el editor revise y publique borradores; no se autopublican tragedias, acusaciones ni política.
 
 La capa de enlaces también acepta permalinks públicos `/photo/?fbid=...` cuando Facebook no entrega `/posts/`; conserva el `fbid` y la URL canónica para evitar perder publicaciones visibles o duplicarlas.
+
+La corrida `34804183174` terminó con GitHub Actions en estado `success`: Playwright encontró un post de El Churre y uno de Chilalo, el Worker respondió HTTP 200, D1 registró `posts_found=5`, `new_posts=1` y `media_images=24`, y quedó un error de fuente separado. El panel mostró 8 posts detectados, 3 borradores y 1 artículo publicado. El Churre sigue pausada hasta activación editorial.
