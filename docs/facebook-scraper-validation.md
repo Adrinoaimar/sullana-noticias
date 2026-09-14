@@ -54,3 +54,9 @@ La prueba pública con Playwright y navegador sin sesión encontró artículos v
 - Municipalidad Distrital de Marcavelica: artículo visible con etiqueta relativa `1d` y permalink de Page.
 
 El adapter no automatiza login ni evade CAPTCHA, bloqueos o controles. Si una sesión autorizada fuera necesaria, solo acepta `FACEBOOK_STORAGE_STATE_B64` como secreto del runner. Meta Graph permanece `PENDING_EXTERNAL` y no bloquea Playwright. Referencia técnica: [playwright-Facebook-scraper](https://github.com/Lencho123/playwright-Facebook-scraper).
+
+## Ampliación pública con medios — 2026-09-13
+
+Se incorporaron [El Chilalo Noticias](https://www.facebook.com/ElChilaloNoticias/) y [Del Chira Noticias](https://www.facebook.com/delchiranoticias), manteniendo las fuentes institucionales existentes. El workflow de GitHub Actions ejecutó Chromium real y capturó un post visible de cada medio; el Worker respondió HTTP 200 y creó dos registros nuevos en D1. Una segunda corrida capturó cinco posts, obtuvo 20 referencias públicas de imágenes y ninguna URL de video visible en el DOM; los duplicados no se insertaron.
+
+El adaptador conserva hasta ocho posts por fuente y hasta seis referencias de medios por post. `media_json` se guarda en `raw_posts`, `news_drafts` y `articles`; el panel permite abrir la referencia original. Las imágenes/videos no se descargan ni se republican automáticamente, porque la visibilidad pública no equivale a autorización de reutilización. Ignacio Escudero falló tres veces, quedó pausada y no impidió procesar las otras fuentes.
