@@ -96,7 +96,7 @@ function layout(env, request, title, description, body, extra = '', canonicalOve
   return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title><meta name="description" content="${esc(description)}"><link rel="canonical" href="${esc(origin)}"><meta property="og:type" content="website"><meta property="og:site_name" content="Sullana Noticias"><meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(description)}"><meta property="og:url" content="${esc(origin)}"><meta property="og:image" content="${esc(ogImage)}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${esc(ogImage)}"><script type="application/ld+json">${siteSchema}</script><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23e86f42'/%3E%3Ctext x='32' y='40' text-anchor='middle' font-family='Arial' font-size='22' font-weight='700' fill='white'%3ESN%3C/text%3E%3C/svg%3E"><style>${STYLE}</style>${analytics}${extra}</head><body><a class="skip" href="#contenido">Saltar al contenido</a><header class="header"><div class="shell header-row"><a class="brand" href="/"><span class="mark">SN</span><span>Sullana<br><strong>Noticias</strong></span></a><nav class="nav" aria-label="Navegación"><a href="/">Inicio</a><a href="/categoria/actualidad">Actualidad</a><a href="/categoria/servicios">Servicios</a><a href="/categoria/seguridad">Seguridad</a><a href="/admin">Panel</a></nav></div></header>${adSlot(env, 'header')}<main id="contenido">${body}</main><footer class="footer"><div class="shell"><strong>Sullana Noticias</strong><p>Información local, fuentes identificables y revisión humana.</p><a href="/rss.xml">RSS</a> · <a href="/sitemap.xml">Mapa del sitio</a></div></footer><script>${CLIENT_JS}</script></body></html>`;
 }
 
-const CLIENT_JS = `(()=>{const send=(name,metadata={},articleId=null)=>{if(typeof window.gtag==='function')window.gtag('event',name,metadata);fetch('/api/events',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event_name:name,article_id:articleId,metadata})}).catch(()=>{})};document.querySelectorAll('[data-event]').forEach(el=>el.addEventListener('click',()=>send(el.dataset.event,{path:location.pathname},el.dataset.articleId?Number(el.dataset.articleId):null)));document.querySelectorAll('[data-share]').forEach(b=>b.addEventListener('click',async()=>{const u=b.dataset.url,t=b.dataset.title||document.title;const n=b.dataset.share==='copy'?'copy_link':b.dataset.share+'_share';send(n,{path:location.pathname},b.dataset.articleId?Number(b.dataset.articleId):null);if(b.dataset.share==='copy'){await navigator.clipboard?.writeText(u);b.textContent='Enlace copiado';setTimeout(()=>b.textContent='Copiar enlace',1800)}else if(b.dataset.share==='whatsapp')window.open('https://wa.me/?text='+encodeURIComponent(t+' '+u),'_blank','noopener');else window.open('https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent(u),'_blank','noopener')}));})();`;
+const CLIENT_JS = `(()=>{const context=()=>({path:location.pathname,referrer:document.referrer||''}),send=(name,metadata={},articleId=null)=>{if(typeof window.gtag==='function')window.gtag('event',name,metadata);fetch('/api/events',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event_name:name,article_id:articleId,metadata})}).catch(()=>{})};document.querySelectorAll('[data-event]').forEach(el=>el.addEventListener('click',()=>send(el.dataset.event,context(),el.dataset.articleId?Number(el.dataset.articleId):null)));document.querySelectorAll('[data-share]').forEach(b=>b.addEventListener('click',async()=>{const u=b.dataset.url,t=b.dataset.title||document.title;const n=b.dataset.share==='copy'?'copy_link':b.dataset.share+'_share',id=b.dataset.articleId?Number(b.dataset.articleId):null;send('article_share',{...context(),channel:n},id);send(n,context(),id);if(b.dataset.share==='copy'){await navigator.clipboard?.writeText(u);b.textContent='Enlace copiado';setTimeout(()=>b.textContent='Copiar enlace',1800)}else if(b.dataset.share==='whatsapp')window.open('https://wa.me/?text='+encodeURIComponent(t+' '+u),'_blank','noopener');else window.open('https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent(u),'_blank','noopener')}));})();`;
 
 async function articleRows(env, limit = 30) {
   if (!env.DB) return [];
@@ -114,10 +114,19 @@ async function home(env, request) {
 async function category(env, request, slug) {
   const category = env.DB ? await dbFirst(env.DB, 'SELECT * FROM categories WHERE slug=?', slug) : null;
   const articles = category ? (await articleRows(env, 100)).filter((article) => article.category_slug === slug) : [];
-  if (env.DB) await dbRun(env.DB, 'INSERT INTO events (event_name,article_id,metadata_json) VALUES (?,?,?)', 'category_view', null, JSON.stringify({ path: new URL(request.url).pathname, category: slug }));
+  if (env.DB) await dbRun(env.DB, 'INSERT INTO events (event_name,article_id,metadata_json) VALUES (?,?,?)', 'category_view', null, JSON.stringify({ path: new URL(request.url).pathname, category: slug, referrer: request.headers.get('referer') || '' }));
   const title = category?.name || 'Actualidad';
   const body = `<section class="shell section"><div class="kicker">Archivo local</div><h1>${esc(title)}</h1><p class="lede">Noticias y publicaciones editoriales de ${esc(title.toLowerCase())} en Sullana y la provincia.</p></section><section class="shell section"><div class="grid">${articles.length ? articles.map(card).join('') : '<div class="empty"><strong>Aún no hay publicaciones.</strong><p>Los artículos aprobados aparecerán aquí.</p></div>'}</div></section>`;
-  return html(layout(env, request, `${title} · Sullana Noticias`, `Noticias de ${title.toLowerCase()} en Sullana, Piura.`, body, '', `${originOf(request)}/categoria/${encodeURIComponent(slug)}`));
+  return html(layout(env, request, `${title} · Sullana Noticias`, `Noticias de ${title.toLowerCase()} en Sullana, Piura.`, body, '', `${originOf(request)}/categoria/${encodeURIComponent(slug)}`), 200, { 'cache-control': 'private, no-store' });
+}
+
+async function search(env, request) {
+  const query = new URL(request.url).searchParams.get('q')?.trim().slice(0, 80) || '';
+  const pattern = `%${query}%`;
+  const articles = env.DB && query ? await dbRows(env.DB, 'SELECT a.*, c.name AS category_name, c.slug AS category_slug FROM articles a LEFT JOIN categories c ON c.id=a.category_id WHERE lower(a.title) LIKE lower(?) OR lower(a.dek) LIKE lower(?) OR lower(a.body) LIKE lower(?) ORDER BY a.published_at DESC LIMIT 30', pattern, pattern, pattern) : [];
+  if (env.DB && query) await dbRun(env.DB, 'INSERT INTO events (event_name,article_id,metadata_json) VALUES (?,?,?)', 'search', null, JSON.stringify({ path: new URL(request.url).pathname, query_length: query.length, results: articles.length, referrer: request.headers.get('referer') || '' }));
+  const body = `<section class="shell section"><div class="kicker">Archivo local</div><h1>Buscar</h1><form class="search-form" action="/buscar" method="get"><label for="search-query">Término</label><input id="search-query" name="q" value="${esc(query)}" maxlength="80" required><button class="button dark" type="submit">Buscar</button></form>${query ? `<p class="meta">Resultados para “${esc(query)}”</p><div class="grid">${articles.length ? articles.map(card).join('') : '<div class="empty"><strong>No encontramos publicaciones.</strong><p>Prueba con otro término local.</p></div>'}</div>` : '<p class="lede">Busca artículos publicados de Sullana y la provincia.</p>'}</section>`;
+  return html(layout(env, request, `Buscar${query ? ` · ${query}` : ''} · Sullana Noticias`, 'Busca noticias locales de Sullana, Piura.', body), 200, { 'cache-control': 'private, no-store' });
 }
 
 async function article(env, request, slug) {
@@ -133,17 +142,36 @@ async function article(env, request, slug) {
   const body = `<article class="shell article"><div class="eyebrow">${esc(item.category_name || 'Actualidad')} · ${esc(item.published_at || '')}</div><h1>${esc(item.title)}</h1><p class="dek">${esc(item.dek || item.summary)}</p><div class="source">Fuente: <a href="${esc(item.source_url)}" data-event="source_click" data-article-id="${item.id}" rel="nofollow noopener" target="_blank">${esc(item.source_name)}</a> · <a href="${esc(item.original_post_url)}" data-event="source_click" data-article-id="${item.id}" rel="nofollow noopener" target="_blank">publicación original</a></div>${adSlot(env, 'article-body')}<div class="body">${esc(item.body || item.summary).replaceAll('\n','<br>')}</div><div class="share"><strong>Compartir</strong><button data-share="whatsapp" data-article-id="${item.id}" data-url="${esc(canonical)}" data-title="${esc(item.title)}">WhatsApp</button><button data-share="facebook" data-article-id="${item.id}" data-url="${esc(canonical)}">Facebook</button><button data-share="copy" data-article-id="${item.id}" data-url="${esc(canonical)}">Copiar enlace</button></div></article>`;
   if (env.DB) {
     await dbRun(env.DB, 'UPDATE articles SET view_count=view_count+1 WHERE id=?', item.id);
-    await dbRun(env.DB, 'INSERT INTO events (event_name,article_id,metadata_json) VALUES (?,?,?)', 'article_view', item.id, JSON.stringify({ path: new URL(request.url).pathname }));
+    await dbRun(env.DB, 'INSERT INTO events (event_name,article_id,metadata_json) VALUES (?,?,?)', 'article_view', item.id, JSON.stringify({ path: new URL(request.url).pathname, referrer: request.headers.get('referer') || '' }));
   }
   const articleExtra = extra.replace(`<link rel="canonical" href="${esc(canonical)}">`, '').replace(`<meta property="og:url" content="${esc(canonical)}">`, '');
-  return html(layout(env, request, item.meta_title || `${item.title} · Sullana Noticias`, item.meta_description || item.dek, body, articleExtra, canonical));
+  return html(layout(env, request, item.meta_title || `${item.title} · Sullana Noticias`, item.meta_description || item.dek, body, articleExtra, canonical), 200, { 'cache-control': 'private, no-store' });
 }
 
 async function dashboard(env) {
   if (!env.DB) return { database: 'MISSING' };
   const count = async (table, where = '') => (await dbFirst(env.DB, `SELECT COUNT(*) AS total FROM ${table} ${where}`))?.total || 0;
   const today = "date(created_at)=date('now')";
-  return { visits_today: await count('events', `WHERE event_name='article_view' AND ${today}`), articles_today: await count('articles', "WHERE date(published_at)=date('now')"), sources_enabled: await count('sources', 'WHERE enabled=1'), posts_detected: await count('raw_posts'), drafts: await count('news_drafts', "WHERE editorial_status='DRAFT'"), published: await count('articles'), last_scrape: await dbFirst(env.DB, 'SELECT * FROM scrape_runs ORDER BY started_at DESC LIMIT 1'), analytics: { shares_today: await count('events', `WHERE event_name IN ('whatsapp_share','facebook_share','copy_link') AND ${today}`), top_articles: await dbRows(env.DB, 'SELECT title, view_count FROM articles ORDER BY view_count DESC, published_at DESC LIMIT 5') }, monetization: { network: String(env.AD_NETWORK || 'PENDING_EXTERNAL'), configured: Boolean(env.AD_SCRIPT_URL || env.AD_ZONE_ID), revenue: 'PENDING_EXTERNAL' } };
+  const lastScrape = await dbFirst(env.DB, 'SELECT * FROM scrape_runs ORDER BY started_at DESC LIMIT 1');
+  return {
+    visits_today: await count('events', `WHERE event_name='article_view' AND ${today}`),
+    articles_today: await count('articles', "WHERE date(published_at)=date('now')"),
+    sources_enabled: await count('sources', 'WHERE enabled=1'),
+    sources_checked_today: await count('sources', "WHERE date(last_checked_at)=date('now')"),
+    posts_detected: await count('raw_posts'),
+    drafts: await count('news_drafts', "WHERE editorial_status='DRAFT'"),
+    published: await count('articles'),
+    last_scrape: lastScrape,
+    analytics: {
+      shares_today: await count('events', `WHERE event_name IN ('article_share','whatsapp_share','facebook_share','copy_link') AND ${today}`),
+      top_articles: await dbRows(env.DB, 'SELECT title, view_count FROM articles ORDER BY view_count DESC, published_at DESC LIMIT 5'),
+    },
+    traffic: {
+      social_today: await count('events', `WHERE event_name='article_view' AND ${today} AND (lower(metadata_json) LIKE '%facebook%' OR lower(metadata_json) LIKE '%whatsapp%' OR lower(metadata_json) LIKE '%instagram%' OR lower(metadata_json) LIKE '%tiktok%')`),
+      google_today: await count('events', `WHERE event_name='article_view' AND ${today} AND (lower(metadata_json) LIKE '%google.%' OR lower(metadata_json) LIKE '%google/')`),
+    },
+    monetization: { network: String(env.AD_NETWORK || 'PENDING_EXTERNAL'), configured: Boolean(env.AD_SCRIPT_URL || env.AD_ZONE_ID), revenue: 'PENDING_EXTERNAL' },
+  };
 }
 
 async function createDraft(db, raw) {
@@ -201,7 +229,8 @@ async function adminPage(env, request) {
     .replace('<script>(()=>{', '<script>document.addEventListener("DOMContentLoaded",()=>{(()=>{')
     .replace('})();</script>', '})();});</script>');
   const analyticsScript = String.raw`<script>(()=>{const q=s=>document.querySelector(s),esc=v=>String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");const load=async()=>{if(q("#app")?.classList.contains("hidden"))return;try{const d=await fetch("/api/admin/dashboard").then(r=>r.json());q("#analytics").innerHTML="<p><strong>Visitas hoy:</strong> "+esc(d.visits_today)+" · <strong>Compartidos hoy:</strong> "+esc(d.analytics?.shares_today??0)+"</p>"+(d.analytics?.top_articles||[]).map(x=>"<div class=\"item\"><strong>"+esc(x.title)+"</strong><span class=\"badge\">"+esc(x.view_count)+" vistas</span></div>").join("")||"<p>Aún no hay visitas registradas.</p>";const m=d.monetization||{};q("#monetization").innerHTML="<p><strong>Red:</strong> "+esc(m.network)+"</p><p><strong>Estado:</strong> "+esc(m.configured?"Configurada por secreto":"PENDING_EXTERNAL")+" · <strong>Ingresos:</strong> "+esc(m.revenue)+"</p>"}catch{}};const timer=setInterval(()=>{load();if(!q("#app")?.classList.contains("hidden"))clearInterval(timer)},500)})();</script>`;
-  return html(layout(env, request, 'Panel editorial · Sullana Noticias', 'Panel de revisión editorial.', body, `${deferredScript}${analyticsScript}`));
+  const kpiScript = String.raw`<script>(()=>{const q=s=>document.querySelector(s),e=v=>String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");const load=async()=>{if(q("#app")?.classList.contains("hidden"))return;try{const d=await fetch("/api/admin/dashboard").then(r=>r.json());const m=d.monetization||{},t=d.traffic||{};q("#metrics").innerHTML=[["Visitas hoy",d.visits_today],["Artículos hoy",d.articles_today],["Fuentes revisadas",d.sources_checked_today],["Posts",d.posts_detected],["Publicados",d.published],["Borradores",d.drafts],["Tráfico social",t.social_today],["Tráfico Google",t.google_today],["Ingresos ads",m.revenue]].map(x=>"<div class=\"metric\"><small>"+e(x[0])+"</small><strong>"+e(x[1])+"</strong></div>").join("")}catch{}};const timer=setInterval(()=>{load();if(!q("#app")?.classList.contains("hidden"))clearInterval(timer)},750)})();</script>`;
+  return html(layout(env, request, 'Panel editorial · Sullana Noticias', 'Panel de revisión editorial.', body, `${deferredScript}${analyticsScript}${kpiScript}`));
 }
 
 export default {
@@ -209,7 +238,11 @@ export default {
     const url = new URL(request.url);
     try {
       if (env.DB) ctx.waitUntil(seed(env.DB).catch((error) => console.error('seed', error)));
-      if (url.pathname === '/api/health') return json({ web: 'OK', database: env.DB ? 'OK' : 'MISSING', scraper: env.INGEST_TOKEN ? 'PLAYWRIGHT_ADAPTER' : 'NOT_CONFIGURED', meta_graph: 'PENDING_EXTERNAL' });
+      if (url.pathname === '/api/health') {
+        const lastScrape = env.DB ? await dbFirst(env.DB, 'SELECT status, started_at, finished_at, posts_found, new_posts, errors FROM scrape_runs ORDER BY started_at DESC LIMIT 1') : null;
+        const lastFinished = lastScrape?.finished_at ? Date.parse(lastScrape.finished_at) : NaN;
+        return json({ web: 'OK', database: env.DB ? 'OK' : 'MISSING', scraper: env.INGEST_TOKEN ? 'PLAYWRIGHT_ADAPTER' : 'NOT_CONFIGURED', meta_graph: 'PENDING_EXTERNAL', last_scrape: lastScrape, last_scrape_minutes: Number.isFinite(lastFinished) ? Math.max(0, Math.round((Date.now() - lastFinished) / 60000)) : null });
+      }
       if (url.pathname === '/api/auth/login' && request.method === 'POST') {
         const body = await bodyJson(request);
         if (!env.ADMIN_PASSWORD) return json({ error: 'ADMIN_PASSWORD_NOT_CONFIGURED' }, 503);
@@ -246,6 +279,7 @@ export default {
       if (url.pathname === '/robots.txt') return text(`User-agent: *\nAllow: /\nDisallow: /admin\nSitemap: ${originOf(request)}/sitemap.xml\n`);
       if (url.pathname === '/admin') return adminPage(env, request);
       if (url.pathname.startsWith('/noticias/')) return article(env, request, decodeURIComponent(url.pathname.slice('/noticias/'.length)));
+      if (url.pathname === '/buscar') return search(env, request);
       if (url.pathname.startsWith('/categoria/')) return category(env, request, decodeURIComponent(url.pathname.slice('/categoria/'.length)));
       return home(env, request);
     } catch (error) { console.error(error); return json({ error:'INTERNAL_ERROR' },500); }
