@@ -2,7 +2,8 @@ name: Sullana Noticias · ingesta pública
 
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    # Aproximadamente cada 30 minutos, desplazado de :00/:30 por carga de GitHub.
+    - cron: "17,47 * * * *"
   workflow_call:
     inputs:
       scope:
