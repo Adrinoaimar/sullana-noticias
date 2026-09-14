@@ -64,12 +64,19 @@ _RELATIVE_DATE = re.compile(
 _POST_PATH = re.compile(r"/(?:posts|reel|permalink\.php)(?:/|$)", re.I)
 _STOP_LINES = {
     "all reactions:",
+    "todas las reacciones:",
     "like",
+    "me gusta",
     "comment",
+    "comentar",
     "share",
+    "compartir",
     "view more comments",
+    "ver más comentarios",
     "see translation",
+    "ver traducción",
     "write a comment",
+    "escribe un comentario",
     "most relevant",
 }
 
@@ -306,6 +313,10 @@ class PlaywrightFacebookSourceAdapter:
                     page.mouse.wheel(0, 2200)
                     page.wait_for_timeout(1500)
                 articles = page.locator("div[role='article']")
+                try:
+                    articles.first.wait_for(state="attached", timeout=min(self.timeout * 1000, 8000))
+                except PlaywrightTimeoutError:
+                    pass
                 article_count = articles.count()
                 logger.info("source=%s articles=%d", source.get("name", "unknown"), article_count)
                 for index in range(min(article_count, self.page_limit * 4)):
