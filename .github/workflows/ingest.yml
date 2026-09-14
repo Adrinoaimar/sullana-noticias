@@ -10,6 +10,10 @@ on:
         required: false
         type: string
         default: all
+      publish_safe:
+        required: false
+        type: boolean
+        default: true
   workflow_dispatch:
     inputs:
       scope:
@@ -53,7 +57,7 @@ jobs:
           SULLANA_INGEST_TOKEN: ${{ secrets.SULLANA_INGEST_TOKEN }}
           FACEBOOK_STORAGE_STATE_B64: ${{ secrets.FACEBOOK_STORAGE_STATE_B64 }}
           SULLANA_SCOPE: ${{ inputs.scope || 'all' }}
-          SULLANA_PUBLISH_SAFE: ${{ inputs.publish_safe == '' && 'true' || inputs.publish_safe }}
+          SULLANA_PUBLISH_SAFE: ${{ github.event_name == 'schedule' && 'true' || inputs.publish_safe }}
         run: |
           if command -v xvfb-run >/dev/null 2>&1; then
             export PLAYWRIGHT_HEADLESS=0
