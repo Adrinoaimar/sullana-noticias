@@ -935,6 +935,17 @@ class PlaywrightFacebookSourceAdapter:
                 continue
         return False
 
+    def _expand_page_captions(self, page: Any, limit: int = 12) -> int:
+        """Expand a bounded number of visible public captions on the feed."""
+        expanded = 0
+        for _ in range(max(0, min(int(limit), 20))):
+            if not self._expand_visible_text(page, page):
+                break
+            expanded += 1
+        if expanded:
+            logger.info("expanded_public_captions=%d", expanded)
+        return expanded
+
     def _extract_article(self, article: Any, source: dict[str, Any], identifier: str, page: Any | None = None) -> dict[str, Any] | None:
         try:
             self._expand_visible_text(article, page)
@@ -1044,6 +1055,7 @@ class PlaywrightFacebookSourceAdapter:
                         for _ in range(self.scroll_limit):
                             page.mouse.wheel(0, 2200)
                             page.wait_for_timeout(1500)
+                        self._expand_page_captions(page)
                         articles = page.locator("div[role='article']")
                         try:
                             articles.first.wait_for(state="attached", timeout=min(self.timeout * 1000, 8000))
