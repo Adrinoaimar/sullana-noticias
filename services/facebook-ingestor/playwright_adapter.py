@@ -400,6 +400,7 @@ class PlaywrightFacebookSourceAdapter:
         if sync_playwright is None:
             raise RuntimeError(f"playwright unavailable: {PLAYWRIGHT_IMPORT_ERROR}")
         page_url, identifier = self._page_url(source)
+        page_urls = [page_url, f"https://m.facebook.com/{identifier}/"]
         logger.info("opening source=%s url=%s", source.get("name", "unknown"), page_url)
         posts: list[dict[str, Any]] = []
         with sync_playwright() as playwright:
@@ -411,33 +412,39 @@ class PlaywrightFacebookSourceAdapter:
             page = context.new_page()
             page.set_default_timeout(self.timeout * 1000)
             try:
-                page.goto(page_url, wait_until="domcontentloaded", timeout=self.timeout * 1000)
-                page.wait_for_timeout(2500)
-                # Facebook may place a public login prompt above the feed.
-                # Dismiss only the visible close control; never submit credentials.
-                try:
-                    close_prompt = page.get_by_role("button", name="Cerrar", exact=True).first
-                    if close_prompt.count():
-                        close_prompt.click(timeout=1000)
-                        page.wait_for_timeout(500)
-                except Exception:
-                    pass
-                for _ in range(self.scroll_limit):
-                    page.mouse.wheel(0, 2200)
-                    page.wait_for_timeout(1500)
-                articles = page.locator("div[role='article']")
-                try:
-                    articles.first.wait_for(state="attached", timeout=min(self.timeout * 1000, 8000))
-                except PlaywrightTimeoutError:
-                    pass
-                article_count = articles.count()
-                logger.info("source=%s articles=%d", source.get("name", "unknown"), article_count)
-                for index in range(min(article_count, self.page_limit * 4)):
-                    post = self._extract_article(articles.nth(index), source, identifier)
-                    if post and post["post_url"] not in {item["post_url"] for item in posts}:
-                        posts.append(post)
+                for variant_index, candidate_url in enumerate(page_urls):
                     if len(posts) >= self.page_limit:
                         break
+                    try:
+                        page.goto(candidate_url, wait_until="domcontentloaded", timeout=self.timeout * 1000)
+                        page.wait_for_timeout(2500)
+                        # Facebook may place a public login prompt above the feed.
+                        # Dismiss only the visible close control; never submit credentials.
+                        try:
+                            close_prompt = page.get_by_role("button", name="Cerrar", exact=True).first
+                            if close_prompt.count():
+                                close_prompt.click(timeout=1000)
+                                page.wait_for_timeout(500)
+                        except Exception:
+                            pass
+                        for _ in range(self.scroll_limit):
+                            page.mouse.wheel(0, 2200)
+                            page.wait_for_timeout(1500)
+                        articles = page.locator("div[role='article']")
+                        try:
+                            articles.first.wait_for(state="attached", timeout=min(self.timeout * 1000, 8000))
+                        except PlaywrightTimeoutError:
+                            pass
+                        article_count = articles.count()
+                        logger.info("source=%s variant=%d articles=%d", source.get("name", "unknown"), variant_index + 1, article_count)
+                        for index in range(min(article_count, self.page_limit * 4)):
+                            post = self._extract_article(articles.nth(index), source, identifier)
+                            if post and post["post_url"] not in {item["post_url"] for item in posts}:
+                                posts.append(post)
+                            if len(posts) >= self.page_limit:
+                                break
+                    except PlaywrightTimeoutError:
+                        logger.warning("source=%s variant=%d timeout", source.get("name", "unknown"), variant_index + 1)
             finally:
                 context.close()
                 browser.close()
