@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS sources (
   trust_level TEXT NOT NULL DEFAULT 'UNVERIFIED' CHECK (trust_level IN ('OFFICIAL', 'TRUSTED_MEDIA', 'COMMUNITY', 'BUSINESS', 'UNVERIFIED')),
   auto_draft INTEGER NOT NULL DEFAULT 1 CHECK (auto_draft IN (0, 1)),
   auto_publish INTEGER NOT NULL DEFAULT 0 CHECK (auto_publish IN (0, 1)),
+  pause_reason TEXT NOT NULL DEFAULT 'NONE' CHECK (pause_reason IN ('NONE', 'MANUAL', 'SCRAPER_ERROR')),
   last_checked_at TEXT,
   last_success_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP

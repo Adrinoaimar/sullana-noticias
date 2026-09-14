@@ -50,7 +50,7 @@ const normalizeMedia = (value, fallbackImage = null) => {
 };
 
 const db = openDatabase();
-const sources = db.prepare('SELECT * FROM sources WHERE enabled = 1 ORDER BY id').all();
+const sources = db.prepare("SELECT * FROM sources WHERE enabled = 1 OR pause_reason = 'SCRAPER_ERROR' ORDER BY id").all();
 if (!sources.length) {
   console.error('No hay fuentes activas. Activa una fuente después de verificarla.');
   db.close();
@@ -63,12 +63,16 @@ if (!sources.length) {
   try { payload = JSON.parse(result.stdout || '{}'); } catch { payload = { errors: [{ source: 'runner', message: result.stderr || 'Invalid JSON' }] }; }
   const posts = payload.posts || [];
   const errors = payload.errors || [];
+  const failedSourceIds = new Set(errors.map((error) => Number(error.source_id)).filter(Number.isInteger));
+  const failedSourceNames = new Set(errors.map((error) => String(error.source || '').trim()).filter(Boolean));
+  const recoveredSourceIds = new Set();
   let newPosts = 0;
   let duplicates = 0;
   const insert = db.prepare('INSERT OR IGNORE INTO raw_posts (source_id, external_post_id, text, post_url, image_url, media_json, published_at, fetched_at, content_hash, processing_status, verification_status, likes, comments, shares, reactions_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
   for (const post of posts) {
     const source = sources.find((item) => item.id === post.source_id);
     if (!source || !post.post_url) continue;
+    if (source.pause_reason === 'SCRAPER_ERROR') recoveredSourceIds.add(Number(source.id));
     const check = classify(post.text, source);
     const hash = contentHash(post.text, post.post_url);
     const media = normalizeMedia(post.media, post.image);
@@ -101,7 +105,13 @@ if (!sources.length) {
   }
   const status = errors.length && !posts.length ? 'ERROR' : errors.length ? 'PARTIAL' : 'SUCCESS';
   db.prepare('UPDATE scrape_runs SET finished_at = ?, posts_found = ?, new_posts = ?, duplicates = ?, errors = ?, status = ?, error_message = ? WHERE id = ?').run(now(), posts.length, newPosts, duplicates, errors.length, status, errors.map((error) => `${error.source}: ${error.message}`).join(' | ') || null, Number(run.lastInsertRowid));
-  for (const source of sources) db.prepare('UPDATE sources SET last_checked_at = ?, last_success_at = CASE WHEN ? IN (\'SUCCESS\', \'PARTIAL\') THEN ? ELSE last_success_at END WHERE id = ?').run(now(), status, now(), source.id);
+  for (const source of sources) {
+    const failed = failedSourceIds.has(Number(source.id)) || failedSourceNames.has(String(source.name));
+    const recovered = recoveredSourceIds.has(Number(source.id)) && !failed;
+    if (failed) db.prepare("UPDATE sources SET enabled=0, pause_reason='SCRAPER_ERROR', last_checked_at=? WHERE id=?").run(now(), source.id);
+    else if (recovered) db.prepare("UPDATE sources SET enabled=1, pause_reason='NONE', last_checked_at=?, last_success_at=? WHERE id=?").run(now(), now(), source.id);
+    else db.prepare("UPDATE sources SET last_checked_at=?, last_success_at=CASE WHEN ? IN ('SUCCESS','PARTIAL') THEN ? ELSE last_success_at END WHERE id=?").run(now(), status, now(), source.id);
+  }
   console.log(JSON.stringify({ run_id: runId, status, posts_found: posts.length, new_posts: newPosts, duplicates, errors }, null, 2));
   db.close();
   process.exitCode = result.error ? 1 : 0;

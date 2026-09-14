@@ -1,0 +1,1 @@
+ALTER TABLE sources ADD COLUMN pause_reason TEXT NOT NULL DEFAULT 'NONE' CHECK (pause_reason IN ('NONE', 'MANUAL', 'SCRAPER_ERROR'));
