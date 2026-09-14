@@ -78,6 +78,8 @@ _STOP_LINES = {
     "ver más comentarios",
     "see translation",
     "ver traducción",
+    "see less",
+    "ver menos",
     "write a comment",
     "escribe un comentario",
     "most relevant",
@@ -634,6 +636,136 @@ class PlaywrightFacebookSourceAdapter:
         logger.info("source=%s photo_context_match=none candidates=%d text_len=%d max_overlap=%d", identifier, len(items) if isinstance(items, list) else 0, len(article_text), max_overlap)
         return None
 
+    def _photo_context_posts(self, page: Any, source: dict[str, Any], identifier: str) -> list[dict[str, Any]]:
+        """Build posts from visible photo contexts when feed article wrappers are empty.
+
+        Anonymous Facebook pages can expose a public photo link and its caption
+        in a shared DOM ancestor without exposing ``role=article`` metadata.
+        This fallback stays conservative: the photo URL, visible date and
+        non-empty caption must all come from that same rendered context.
+        """
+        try:
+            items = page.locator("a[href*='/photo/']").evaluate_all(
+                """nodes => nodes.slice(0, 160).map((node, index) => {
+                    const contexts = [];
+                    let current = node;
+                    for (let depth = 0; current && depth < 12; depth += 1, current = current.parentElement) {
+                        const text = current.innerText || '';
+                        if (text.trim().length >= 40 && text.trim().length <= 7000) {
+                            const labels = Array.from(current.querySelectorAll('a')).slice(0, 100).map(anchor => ({
+                                text: anchor.innerText || '',
+                                aria: anchor.getAttribute('aria-label') || '',
+                                title: anchor.getAttribute('title') || ''
+                            }));
+                            contexts.push({text, labels});
+                        }
+                    }
+                    return {
+                        index,
+                        href: node.href || '',
+                        visible: Boolean(node.getClientRects().length),
+                        contexts
+                    };
+                })"""
+            )
+        except Exception:
+            return []
+
+        source_name = str(source.get("name") or "")
+        source_tokens = _text_signature(source_name)
+        posts: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for item in items if isinstance(items, list) else []:
+            if not isinstance(item, dict) or not item.get("visible", True):
+                continue
+            candidate = _canonical_post_url(str(item.get("href") or ""))
+            if not candidate or not _post_id(candidate) or candidate in seen:
+                continue
+            contexts = item.get("contexts") if isinstance(item.get("contexts"), list) else []
+            selected: tuple[str, str, list[str], int, str] | None = None
+            for context in contexts:
+                if not isinstance(context, dict):
+                    continue
+                context_text = str(context.get("text") or "")
+                labels: list[str] = []
+                for label in context.get("labels") if isinstance(context.get("labels"), list) else []:
+                    if isinstance(label, dict):
+                        labels.extend(
+                            _clean_line(label.get(key) or "")
+                            for key in ("text", "aria", "title")
+                            if _clean_line(label.get(key) or "")
+                        )
+                lines = [_clean_line(line) for line in context_text.splitlines()]
+                context_tokens = _text_signature(context_text + " " + " ".join(labels))
+                source_match = bool(source_tokens and source_tokens.issubset(context_tokens))
+                date_index, date_label = self._date_label(lines)
+                if not date_label:
+                    date_label = next((label for label in labels if _looks_like_date_label(label)), None)
+                    if date_label:
+                        source_index = next(
+                            (
+                                index for index, line in enumerate(lines)
+                                if line == source_name or (
+                                    source_tokens
+                                    and source_tokens.issubset(_text_signature(line))
+                                    and len(_text_signature(line)) <= len(source_tokens) + 2
+                                )
+                            ),
+                            -1,
+                        )
+                        insertion_index = source_index + 1 if source_index >= 0 else 0
+                        lines.insert(insertion_index, date_label)
+                        date_index = insertion_index
+                if not date_label:
+                    continue
+                text = self._text_from_lines(lines, date_index, source_name)
+                if len(text) < 20:
+                    continue
+                # The page itself is the source boundary. A source label is
+                # preferred, while date+caption prevents accepting cover UI.
+                selected = (text, date_label, lines, date_index, "source" if source_match else "date")
+                if source_match:
+                    break
+            if not selected:
+                continue
+            text, date_label, _lines, _date_index, match_kind = selected
+            try:
+                anchor_index = int(item.get("index", -1))
+                anchor = page.locator("a[href*='/photo/']").nth(anchor_index) if anchor_index >= 0 else None
+                media = self._media(anchor)
+            except Exception:
+                media = []
+            images = [media_item for media_item in media if media_item.get("kind") == "image"]
+            videos = [media_item for media_item in media if media_item.get("kind") == "video"]
+            post = {
+                "source_id": source.get("id"),
+                "source_url": source.get("facebook_url"),
+                "page_identifier": identifier,
+                "post_id": _post_id(candidate),
+                "page_name": source.get("name"),
+                "text": text,
+                "published_at": _published_value(date_label),
+                "published_at_raw": date_label,
+                "post_url": candidate,
+                "media": media,
+                "image": images[0]["url"] if images else None,
+                "video": videos[0].get("url") if videos else None,
+                "likes": None,
+                "comments": None,
+                "shares": None,
+                "reactions": None,
+            }
+            posts.append(post)
+            seen.add(candidate)
+            logger.info(
+                "source=%s captured_via=photo_context post_id=%s match=%s text_len=%d",
+                identifier,
+                post["post_id"],
+                match_kind,
+                len(text),
+            )
+        return posts
+
     def _timestamp_permalink(self, page: Any, article: Any, identifier: str) -> str | None:
         """Resolve a feed timestamp link without guessing a post identifier.
 
@@ -899,6 +1031,11 @@ class PlaywrightFacebookSourceAdapter:
                         for index in range(min(article_count, self.page_limit * 4)):
                             post = self._extract_article(articles.nth(index), source, identifier, page)
                             if post and post["post_url"] not in {item["post_url"] for item in posts}:
+                                posts.append(post)
+                            if len(posts) >= self.page_limit:
+                                break
+                        for post in self._photo_context_posts(page, source, identifier):
+                            if post["post_url"] not in {item["post_url"] for item in posts}:
                                 posts.append(post)
                             if len(posts) >= self.page_limit:
                                 break
