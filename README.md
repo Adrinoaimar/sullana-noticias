@@ -60,9 +60,9 @@ Si Facebook exige una sesión para una fuente concreta, el workflow acepta opcio
 2. `POST /api/admin/ingest` revisa fuentes activas.
 3. `raw_posts` conserva texto, fecha, URL, hash e inventario de medios públicos (`media_json`); el panel permite abrir las referencias originales para revisión.
 4. Relevancia detecta señales locales; contenido sensible exige `VERIFY`.
-5. `auto_draft` crea borrador. Redacción inicial queda limitada al texto confirmado.
+5. `auto_draft` crea un borrador parafraseado de forma conservadora a partir del texto completo confirmado; el texto capturado queda trazable en `raw_posts`.
 6. El editor corrige y confirma contenido sensible; el scheduler puede publicar automáticamente solo el subconjunto reciente, confiable y no sensible.
-7. El artículo genera URL, canonical, OpenGraph, JSON-LD, sitemap y RSS.
+7. El artículo genera URL, canonical, OpenGraph, JSON-LD, sitemap y RSS. Si Facebook entrega una imagen pública, se muestra con atribución a la fuente; no se descarga ni se inventa una imagen.
 
 ## Endpoints útiles
 

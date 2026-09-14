@@ -1,3 +1,5 @@
+import { buildEditorialCopy } from './editorial.js';
+
 const enc = new TextEncoder();
 
 const MONETAG_SITE_VERIFICATION = '<meta name="monetag" content="c955b399d7dd83b8622b8bcead567793">';
@@ -61,6 +63,25 @@ const normalizeMedia = (value, fallbackImage = null) => {
   const image = publicMediaUrl(fallbackImage);
   if (image && !seen.has(image) && output.length < 8) output.unshift({ kind: 'image', url: image });
   return output;
+};
+
+const featuredImage = (article) => {
+  const direct = publicMediaUrl(article?.image_url);
+  if (direct) return { url: direct, alt: `Imagen de ${article.source_name || 'la fuente original'}` };
+  try {
+    const media = JSON.parse(article?.media_json || '[]');
+    const image = Array.isArray(media) ? media.find((item) => item?.kind === 'image') : null;
+    const url = publicMediaUrl(image?.url);
+    return url ? { url, alt: String(image.alt || `Imagen de ${article.source_name || 'la fuente original'}`).slice(0, 160) } : null;
+  } catch {
+    return null;
+  }
+};
+
+const imageMarkup = (article, className) => {
+  const image = featuredImage(article);
+  if (!image) return '';
+  return `<figure class="${className}" style="margin:0 0 24px;overflow:hidden;background:#e6eee8"><img src="${esc(image.url)}" alt="${esc(image.alt)}" loading="lazy" decoding="async" referrerpolicy="no-referrer" style="display:block;width:100%;aspect-ratio:16/9;object-fit:cover"><figcaption style="padding:8px 12px;color:#6a7771;font-size:11px">Imagen: ${esc(article.source_name || 'fuente original')}</figcaption></figure>`;
 };
 
 const signalText = (value) => String(value || '').toLowerCase()
@@ -178,7 +199,7 @@ const displayDek = (article) => {
 };
 const displayOriginalDate = (article) => article.original_published_at ? ` · Facebook: ${article.original_published_at}` : '';
 
-function card(article) { return `<article class="card"><div class="eyebrow">${esc(article.category_name || 'Actualidad')} · ${esc(article.published_at || 'Sin fecha')}${esc(displayOriginalDate(article))}${article.source_name ? ` · ${esc(article.source_name)}` : ''}</div><h3><a href="/noticias/${encodeURIComponent(article.slug)}">${esc(article.title)}</a></h3><p>${esc(displayDek(article))}</p><a class="button" href="/noticias/${encodeURIComponent(article.slug)}">Leer noticia ↗</a></article>`; }
+function card(article) { return `<article class="card">${imageMarkup(article, 'card-media')}<div class="eyebrow">${esc(article.category_name || 'Actualidad')} · ${esc(article.published_at || 'Sin fecha')}${esc(displayOriginalDate(article))}${article.source_name ? ` · ${esc(article.source_name)}` : ''}</div><h3><a href="/noticias/${encodeURIComponent(article.slug)}">${esc(article.title)}</a></h3><p>${esc(displayDek(article))}</p><a class="button" href="/noticias/${encodeURIComponent(article.slug)}">Leer noticia ↗</a></article>`; }
 
 async function home(env, request) {
   const articles = await articleRows(env);
@@ -208,14 +229,14 @@ async function article(env, request, slug) {
   const item = env.DB ? await dbFirst(env.DB, 'SELECT a.*, c.name AS category_name FROM articles a LEFT JOIN categories c ON c.id=a.category_id WHERE a.slug=?', slug) : null;
   if (!item) return html(layout(env, request, 'Noticia no encontrada', 'La noticia solicitada no está disponible.', '<section class="shell section"><h1>Noticia no encontrada</h1><p>Puede haber sido retirada o aún está en revisión.</p><a class="button dark" href="/">Volver al inicio</a></section>'), 404);
   const canonical = `${originOf(request)}/noticias/${encodeURIComponent(item.slug)}`;
-  const ogImage = `${originOf(request)}/og-default.svg`;
+  const ogImage = featuredImage(item)?.url || `${originOf(request)}/og-default.svg`;
   const dek = displayDek(item);
   const articleSchema = [
     { '@context': 'https://schema.org', '@type': 'NewsArticle', headline: item.title, description: item.meta_description || dek, image: [ogImage], datePublished: item.published_at, dateModified: item.modified_at, mainEntityOfPage: canonical, author: { '@type': 'Organization', name: 'Sullana Noticias' }, publisher: { '@type': 'Organization', name: 'Sullana Noticias' } },
     { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Inicio', item: originOf(request) }, { '@type': 'ListItem', position: 2, name: item.category_name || 'Actualidad', item: `${originOf(request)}/categoria/actualidad` }, { '@type': 'ListItem', position: 3, name: item.title, item: canonical }] },
   ];
   const extra = `<link rel="canonical" href="${esc(canonical)}"><meta property="og:type" content="article"><meta property="og:title" content="${esc(item.title)}"><meta property="og:description" content="${esc(item.meta_description || dek)}"><meta property="og:url" content="${esc(canonical)}"><meta property="og:image" content="${esc(ogImage)}"><meta property="article:published_time" content="${esc(item.published_at)}"><meta property="article:modified_time" content="${esc(item.modified_at)}"><script type="application/ld+json">${JSON.stringify(articleSchema)}</script>`;
-  const body = `<article class="shell article"><div class="eyebrow">${esc(item.category_name || 'Actualidad')} · ${esc(item.published_at || '')}${esc(displayOriginalDate(item))}</div><h1>${esc(item.title)}</h1><p class="dek">${esc(dek)}</p><div class="source">Fuente: <a href="${esc(item.source_url)}" data-event="source_click" data-article-id="${item.id}" rel="nofollow noopener" target="_blank">${esc(item.source_name)}</a>${item.original_published_at ? ` · fecha original: ${esc(item.original_published_at)}` : ''} · <a href="${esc(item.original_post_url)}" data-event="source_click" data-article-id="${item.id}" rel="nofollow noopener" target="_blank">publicación original</a></div>${adSlot(env, 'article-body')}<div class="body">${esc(item.body || item.summary).replaceAll('\n','<br>')}</div><div class="share"><strong>Compartir</strong><button data-share="whatsapp" data-article-id="${item.id}" data-url="${esc(canonical)}" data-title="${esc(item.title)}">WhatsApp</button><button data-share="facebook" data-article-id="${item.id}" data-url="${esc(canonical)}">Facebook</button><button data-share="copy" data-article-id="${item.id}" data-url="${esc(canonical)}">Copiar enlace</button></div></article>`;
+  const body = `<article class="shell article">${imageMarkup(item, 'article-media')}<div class="eyebrow">${esc(item.category_name || 'Actualidad')} · ${esc(item.published_at || '')}${esc(displayOriginalDate(item))}</div><h1>${esc(item.title)}</h1><p class="dek">${esc(dek)}</p><div class="source">Fuente: <a href="${esc(item.source_url)}" data-event="source_click" data-article-id="${item.id}" rel="nofollow noopener" target="_blank">${esc(item.source_name)}</a>${item.original_published_at ? ` · fecha original: ${esc(item.original_published_at)}` : ''} · <a href="${esc(item.original_post_url)}" data-event="source_click" data-article-id="${item.id}" rel="nofollow noopener" target="_blank">publicación original</a></div>${adSlot(env, 'article-body')}<div class="body">${esc(item.body || item.summary).replaceAll('\n','<br>')}</div><div class="share"><strong>Compartir</strong><button data-share="whatsapp" data-article-id="${item.id}" data-url="${esc(canonical)}" data-title="${esc(item.title)}">WhatsApp</button><button data-share="facebook" data-article-id="${item.id}" data-url="${esc(canonical)}">Facebook</button><button data-share="copy" data-article-id="${item.id}" data-url="${esc(canonical)}">Copiar enlace</button></div></article>`;
   if (env.DB) {
     await dbRun(env.DB, 'UPDATE articles SET view_count=view_count+1 WHERE id=?', item.id);
     await dbRun(env.DB, 'INSERT INTO events (event_name,article_id,metadata_json) VALUES (?,?,?)', 'article_view', item.id, JSON.stringify({ path: new URL(request.url).pathname, referrer: request.headers.get('referer') || '' }));
@@ -256,12 +277,32 @@ async function createDraft(db, raw) {
   const category = await dbFirst(db, 'SELECT * FROM categories WHERE slug=?', check.category_slug) || await dbFirst(db, "SELECT * FROM categories WHERE slug='actualidad'");
   if (!source || !category) throw new Error('SOURCE_OR_CATEGORY_NOT_FOUND');
   const title = titleFrom(raw.text);
+  const editorial = buildEditorialCopy(raw.text, source.name);
   let slug = title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 90) || 'noticia-local';
   if (await dbFirst(db, 'SELECT id FROM news_drafts WHERE slug=? UNION SELECT id FROM articles WHERE slug=?', slug, slug)) slug = `${slug}-${Date.now().toString(36)}`;
   const verification = check.sensitive || source.trust_level !== 'OFFICIAL' ? 'VERIFY' : 'UNVERIFIED';
-  const result = await dbRun(db, 'INSERT INTO news_drafts (raw_post_id,category_id,title,dek,summary,body,keywords,meta_title,meta_description,slug,source_name,source_url,original_post_url,original_published_at,image_type,image_url,media_json,verification_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', raw.id, category.id, title, 'Borrador pendiente de revisión editorial.', raw.text, raw.text, 'Sullana, Piura, actualidad local', title, raw.text.slice(0, 155), slug, source.name, source.facebook_url, raw.post_url, raw.published_at || null, raw.image_url ? 'SOURCE_IMAGE' : 'NO_IMAGE', raw.image_url || null, raw.media_json || '[]', verification);
+  const result = await dbRun(db, 'INSERT INTO news_drafts (raw_post_id,category_id,title,dek,summary,body,keywords,meta_title,meta_description,slug,source_name,source_url,original_post_url,original_published_at,image_type,image_url,media_json,verification_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', raw.id, category.id, title, editorial.summary, editorial.summary, editorial.body, 'Sullana, Piura, actualidad local', title, editorial.metaDescription, slug, source.name, source.facebook_url, raw.post_url, raw.published_at || null, raw.image_url ? 'SOURCE_IMAGE' : 'NO_IMAGE', raw.image_url || null, raw.media_json || '[]', verification);
   await dbRun(db, 'UPDATE raw_posts SET processing_status=?,verification_status=? WHERE id=?', 'DRAFTED', verification, raw.id);
   return { id: result.meta?.last_row_id, verification_status: verification };
+}
+
+async function refreshUneditedEditorial(db) {
+  const rows = await dbRows(db, `SELECT d.id, d.raw_post_id, r.text, s.name AS source_name
+    FROM news_drafts d
+    JOIN raw_posts r ON r.id=d.raw_post_id
+    JOIN sources s ON s.id=r.source_id
+    WHERE d.summary=r.text AND d.body=r.text
+    ORDER BY d.id ASC LIMIT 200`);
+  let refreshed = 0;
+  for (const item of rows) {
+    const editorial = buildEditorialCopy(item.text, item.source_name);
+    if (!editorial.body) continue;
+    await dbRun(db, 'UPDATE news_drafts SET dek=?,summary=?,body=?,meta_description=?,updated_at=? WHERE id=?', editorial.summary, editorial.summary, editorial.body, editorial.metaDescription, now(), item.id);
+    await dbRun(db, `UPDATE articles SET dek=?,summary=?,body=?,meta_description=?,modified_at=?
+      WHERE draft_id=? AND summary=? AND body=?`, editorial.summary, editorial.summary, editorial.body, editorial.metaDescription, now(), item.id, item.text, item.text);
+    refreshed += 1;
+  }
+  return refreshed;
 }
 
 const SAFE_BULK_CATEGORIES = new Set(['actualidad', 'servicios', 'educacion', 'deportes', 'eventos', 'economia', 'empleo', 'comunidad', 'entretenimiento']);
@@ -343,6 +384,12 @@ async function persistIngest(env, payload, requestOrigin) {
     if (source.auto_draft && check.status !== 'NOT_RELEVANT') {
       try { const raw = await dbFirst(db, 'SELECT * FROM raw_posts WHERE content_hash=?', hash); await createDraft(db, raw); } catch (error) { errors.push(`${source.name}: ${error.message}`); }
     }
+  }
+  try {
+    const refreshed = await refreshUneditedEditorial(db);
+    if (refreshed) console.log(`editorial_backfill refreshed=${refreshed}`);
+  } catch (error) {
+    console.error('editorial_backfill', error.message);
   }
   const status = errors.length && !found ? 'ERROR' : errors.length ? 'PARTIAL' : 'SUCCESS';
   await dbRun(db, 'UPDATE scrape_runs SET finished_at=?,posts_found=?,new_posts=?,duplicates=?,errors=?,status=?,error_message=? WHERE id=?', now(), found, fresh, duplicates, errors.length, status, errors.join(' | ') || null, run.meta?.last_row_id);

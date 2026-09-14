@@ -59,7 +59,7 @@ El adapter no automatiza login ni evade CAPTCHA, bloqueos o controles. Si una se
 
 Se incorporaron [El Chilalo Noticias](https://www.facebook.com/ElChilaloNoticias/) y [Del Chira Noticias](https://www.facebook.com/delchiranoticias), manteniendo las fuentes institucionales existentes. El workflow de GitHub Actions ejecutó Chromium real y capturó un post visible de cada medio; el Worker respondió HTTP 200 y creó dos registros nuevos en D1. Una segunda corrida capturó cinco posts, obtuvo 20 referencias públicas de imágenes y ninguna URL de video visible en el DOM; los duplicados no se insertaron.
 
-El adaptador conserva hasta ocho posts por fuente y hasta seis referencias de medios por post. `media_json` se guarda en `raw_posts`, `news_drafts` y `articles`; el panel permite abrir la referencia original. Las imágenes/videos no se descargan ni se republican automáticamente, porque la visibilidad pública no equivale a autorización de reutilización. Ignacio Escudero falló tres veces, quedó pausada y no impidió procesar las otras fuentes.
+El adaptador conserva hasta ocho posts por fuente y hasta seis referencias de medios por post. `media_json` se guarda en `raw_posts`, `news_drafts` y `articles`; el panel permite abrir la referencia original. Cuando existe una imagen pública utilizable, el artículo la muestra con atribución; no se descarga ni se rehostea. El borrador editorial se parafrasea de forma conservadora a partir del texto completo visible y queda sujeto a revisión. Ignacio Escudero falló tres veces, quedó pausada y no impidió procesar las otras fuentes.
 
 ## Verificación El Churre y flujo editorial — 2026-09-14
 

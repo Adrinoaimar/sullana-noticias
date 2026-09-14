@@ -273,6 +273,12 @@ class PlaywrightFacebookSourceAdapter:
         for raw_line in lines[start:]:
             line = _clean_line(raw_line)
             lowered = line.lower()
+            engagement = re.search(r"\b(?:like|me gusta)\s+(?:comment|comentar)\s+(?:share|compartir)\b", line, flags=re.I)
+            if engagement:
+                line = line[:engagement.start()].strip()
+                if line:
+                    content.append(line)
+                break
             if lowered in _STOP_LINES or re.search(r"(?:all\s+reactions|todas\s+las\s+reacciones|reacciones)", lowered):
                 break
             if not line or line in {"·", "…"} or re.fullmatch(r"\+\d+", line):
