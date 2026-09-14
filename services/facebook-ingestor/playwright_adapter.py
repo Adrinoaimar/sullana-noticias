@@ -194,7 +194,7 @@ class PlaywrightFacebookSourceAdapter:
         # The post timestamp is in Facebook's compact header. Comment times
         # can be rendered much later in the same article, so prefer the last
         # candidate in the first header lines before consulting separators.
-        header_candidates = [item for item in candidates if item[0] <= 10]
+        header_candidates = [item for item in candidates if item[0] <= 6]
         if header_candidates:
             return header_candidates[-1]
         # Comment timestamps (for example "3h") can appear after the post
