@@ -106,3 +106,7 @@ La portada en producción devuelve 30 tarjetas y 30 URLs únicas. En viewport m�
 El commit `9c4a44a` desplazó el cron del workflow principal a `17,47 * * * *` (aproximadamente cada 30 minutos) para evitar picos de carga de GitHub. La prueba `34876060345` sobre `main` terminó `SUCCESS` en 2m39s: 9 fuentes activas desde D1, 10 posts reales, 4 nuevos, 4 publicaciones seguras y 0 errores. Tras observar `:47`, no apareció un evento `schedule`; GitHub mantiene el workflow activo y el disparador manual sirve como respaldo.
 
 La auditoría live de categorías encontró publicaciones públicas en Actualidad y Servicios. Presidencia, Asaltos, Seguridad y Emergencias permanecen sin artículos públicos porque sus borradores sensibles están en `VERIFY`; no se autopublican acusaciones, delitos, accidentes ni política. Los enlaces y categorías sí están creados.
+
+## Contraste de fuente pública — 2026-09-14
+
+CUA abrió [El Chilalo Noticias](https://www.facebook.com/ElChilaloNoticias) sin login ni controles de acceso: Facebook mostró publicaciones públicas con texto, imagen, hora y enlace original. El `fbid` público `1124807523215202` coincide con el log `captured_via=photo_context` de la corrida `34876060345`; el mismo workflow también capturó publicaciones públicas mediante `video_detail`. Esta evidencia conecta fuente visible, Playwright, normalización, D1 y publicación sin usar contenido inventado.
