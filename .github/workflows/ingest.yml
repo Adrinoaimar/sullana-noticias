@@ -59,13 +59,11 @@ jobs:
           SULLANA_SCOPE: ${{ inputs.scope || 'all' }}
           SULLANA_PUBLISH_SAFE: ${{ github.event_name == 'schedule' && 'true' || inputs.publish_safe }}
         run: |
-          if command -v xvfb-run >/dev/null 2>&1; then
-            export PLAYWRIGHT_HEADLESS=0
-            run_prefix=(xvfb-run -a)
-          else
-            export PLAYWRIGHT_HEADLESS=1
-            run_prefix=()
-          fi
+          # The anonymous public feed exposes the newest readable post more
+          # consistently in headless Chromium; no login or access-control
+          # interaction is performed.
+          export PLAYWRIGHT_HEADLESS=1
+          run_prefix=()
           "${run_prefix[@]}" python - <<'PY'
           import json, os, subprocess, sys, urllib.error, urllib.request
           from urllib.parse import urlsplit, urlunsplit
