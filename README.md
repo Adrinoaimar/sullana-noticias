@@ -7,8 +7,8 @@ MVP editorial mobile-first para descubrir publicaciones públicas, convertir hal
 - Web pública, panel editorial, SQLite persistente, RSS, sitemap, robots.txt, metadata OpenGraph y `NewsArticle`.
 - Pipeline: fuente pública → ingesta → deduplicación → relevancia local → borrador → revisión → publicación.
 - `PlaywrightFacebookSourceAdapter` encapsula la captura pública de Facebook; `kevinzg/facebook-scraper` queda como validación histórica, no como método principal.
-- Autopublicación global desactivada. Posts sensibles quedan en `VERIFY`.
-- Las fuentes institucionales de ejemplo permanecen pausadas hasta revisión editorial; las dos páginas de medios públicos incorporadas para esta fase se revisan como `TRUSTED_MEDIA` y sus hallazgos siempre exigen verificación.
+- Autopublicación global desactivada. El scheduler solo puede publicar automáticamente borradores recientes, relevantes y no sensibles de fuentes `TRUSTED_MEDIA`; posts sensibles quedan en `VERIFY`.
+- Las fuentes institucionales de ejemplo permanecen pausadas hasta revisión editorial; las páginas de medios públicos incorporadas para esta fase se revisan como `TRUSTED_MEDIA` y solo sus hallazgos recientes no sensibles pueden publicarse automáticamente.
 - El fixture de demo no es una noticia real. Ejecutar `SEED_DEMO_ARTICLE=0 npm run seed` antes de un lanzamiento real.
 - Analytics y slots de monetización están opt-in: sin IDs/configuración real permanecen inactivos.
 - El Worker ESM de producción (`worker/index.js`) sirve la web y persiste en D1; el servidor Node/SQLite queda como referencia local.
@@ -61,7 +61,7 @@ Si Facebook exige una sesión para una fuente concreta, el workflow acepta opcio
 3. `raw_posts` conserva texto, fecha, URL, hash e inventario de medios públicos (`media_json`); el panel permite abrir las referencias originales para revisión.
 4. Relevancia detecta señales locales; contenido sensible exige `VERIFY`.
 5. `auto_draft` crea borrador. Redacción inicial queda limitada al texto confirmado.
-6. Editor corrige y confirma publicación explícitamente.
+6. El editor corrige y confirma contenido sensible; el scheduler puede publicar automáticamente solo el subconjunto reciente, confiable y no sensible.
 7. El artículo genera URL, canonical, OpenGraph, JSON-LD, sitemap y RSS.
 
 ## Endpoints útiles

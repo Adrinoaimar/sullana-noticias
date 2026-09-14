@@ -77,7 +77,7 @@ function classify(value, source = {}) {
   const text = String(value || '').toLowerCase();
   const local = source.trust_level === 'TRUSTED_MEDIA' || ['sullana', 'bellavista', 'marcavelica', 'querecotillo', 'lancones', 'miguel checa', 'salitral', 'piura', 'mallares'].some((term) => text.includes(term));
   const sensitive = ['accidente', 'delito', 'fallec', 'muere', 'muerto', 'muerta', 'denuncia', 'emergencia', 'acusaci', 'asesin', 'muerte', 'politica', 'política'].some((term) => text.includes(term));
-  return { status: local ? (sensitive ? 'VERIFY' : 'RELEVANT') : 'NOT_RELEVANT', verification: sensitive ? 'VERIFY' : 'UNVERIFIED', category_slug: sectionFor(value) };
+  return { status: local ? (sensitive ? 'VERIFY' : 'RELEVANT') : 'NOT_RELEVANT', verification: sensitive ? 'VERIFY' : 'UNVERIFIED', category_slug: sectionFor(value), sensitive };
 }
 
 function titleFrom(value) {
@@ -253,6 +253,12 @@ async function createDraft(db, raw) {
 
 const SAFE_BULK_CATEGORIES = new Set(['actualidad', 'servicios', 'educacion', 'deportes', 'eventos', 'economia', 'empleo', 'comunidad', 'entretenimiento']);
 
+function isSafePublication(item) {
+  const sourceTrust = String(item.source_trust_level || '');
+  const check = classify(item.summary || item.body || item.title, { trust_level: sourceTrust });
+  return ['OFFICIAL', 'TRUSTED_MEDIA'].includes(sourceTrust) && SAFE_BULK_CATEGORIES.has(String(item.category_slug || '')) && check.status === 'RELEVANT' && !check.sensitive;
+}
+
 async function publishDraftRecord(db, requestOrigin, item) {
   const canonical = `${requestOrigin}/noticias/${item.slug}`;
   const result = await dbRun(db, 'INSERT OR IGNORE INTO articles (draft_id,category_id,title,dek,summary,body,keywords,meta_title,meta_description,slug,canonical_url,source_name,source_url,original_post_url,original_published_at,image_type,image_url,media_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', item.id, item.category_id, item.title, item.dek, item.summary, item.body, item.keywords, item.meta_title, item.meta_description, item.slug, canonical, item.source_name, item.source_url, item.original_post_url, item.original_published_at, item.image_type, item.image_url, item.media_json || '[]');
@@ -265,7 +271,28 @@ async function publishDraftRecord(db, requestOrigin, item) {
   return { article, created: Boolean(result.meta?.changes) };
 }
 
-async function persistIngest(env, payload) {
+async function publishSafeDrafts(db, requestOrigin, { recentTrustedOnly = false, eventName = 'bulk_safe_publish' } = {}) {
+  const recentFilter = recentTrustedOnly ? " AND s.trust_level='TRUSTED_MEDIA' AND d.created_at >= datetime('now','-2 days')" : '';
+  const candidates = await dbRows(db, `SELECT d.*,c.slug AS category_slug,s.trust_level AS source_trust_level FROM news_drafts d LEFT JOIN categories c ON c.id=d.category_id LEFT JOIN raw_posts r ON r.id=d.raw_post_id LEFT JOIN sources s ON s.id=r.source_id WHERE d.editorial_status='DRAFT'${recentFilter} ORDER BY d.updated_at DESC LIMIT 50`);
+  let published = 0;
+  let alreadyPublished = 0;
+  let skipped = 0;
+  let failed = 0;
+  for (const item of candidates) {
+    if (!isSafePublication(item)) { skipped += 1; continue; }
+    try {
+      const result = await publishDraftRecord(db, requestOrigin, item);
+      if (result.created) published += 1; else alreadyPublished += 1;
+    } catch (error) {
+      failed += 1;
+      console.error(eventName, item.id, error.message);
+    }
+  }
+  await dbRun(db, 'INSERT INTO events (event_name,metadata_json) VALUES (?,?)', eventName, JSON.stringify({ candidates: candidates.length, published, already_published: alreadyPublished, skipped, failed }));
+  return { candidates: candidates.length, published, already_published: alreadyPublished, skipped, failed };
+}
+
+async function persistIngest(env, payload, requestOrigin) {
   const db = env.DB;
   if (!db) return { status: 'ERROR', error: 'DATABASE_NOT_CONFIGURED' };
   const sources = await dbRows(db, "SELECT * FROM sources WHERE enabled=1 OR pause_reason='SCRAPER_ERROR' ORDER BY id");
@@ -317,7 +344,16 @@ async function persistIngest(env, payload) {
       await dbRun(db, "UPDATE sources SET last_checked_at=?, last_success_at=CASE WHEN ? IN ('SUCCESS','PARTIAL') THEN ? ELSE last_success_at END WHERE id=?", now(), status, now(), source.id);
     }
   }
-  return { run_id: runId, status, posts_found: found, new_posts: fresh, duplicates, errors };
+  let safePublication = null;
+  if (payload.publish_safe === true) {
+    try {
+      safePublication = await publishSafeDrafts(db, requestOrigin, { recentTrustedOnly: true, eventName: 'scheduled_safe_publish' });
+    } catch (error) {
+      console.error('scheduled_safe_publish', error.message);
+      safePublication = { candidates: 0, published: 0, already_published: 0, skipped: 0, failed: 1 };
+    }
+  }
+  return { run_id: runId, status, posts_found: found, new_posts: fresh, duplicates, errors, safe_publication: safePublication };
 }
 
 async function adminPage(env, request) {
@@ -358,7 +394,7 @@ export default {
       }
       if (url.pathname === '/api/auth/logout' && request.method === 'POST') return json({ ok: true }, 200, { 'set-cookie': 'sullana_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0' });
       if (url.pathname === '/api/events' && request.method === 'POST' && env.DB) { const event = await bodyJson(request); const allowed = new Set(['article_view','article_share','share_click','copy_link','whatsapp_share','facebook_share','source_click','category_view','search','newsletter_click','editor_login']); if (!allowed.has(String(event.event_name))) return json({ error:'EVENT_NOT_ALLOWED' },400); await dbRun(env.DB,'INSERT INTO events (event_name,article_id,metadata_json) VALUES (?,?,?)',String(event.event_name),Number.isInteger(event.article_id)?event.article_id:null,JSON.stringify(event.metadata||{})); return json({ok:true},202); }
-      if (url.pathname === '/api/ingest' && request.method === 'POST') { if (!await authorizedIngest(request, env)) return json({ error:'INGEST_AUTH_REQUIRED' },401); if (env.DB) await seed(env.DB); return json(await persistIngest(env, await bodyJson(request))); }
+      if (url.pathname === '/api/ingest' && request.method === 'POST') { if (!await authorizedIngest(request, env)) return json({ error:'INGEST_AUTH_REQUIRED' },401); if (env.DB) await seed(env.DB); return json(await persistIngest(env, await bodyJson(request), originOf(request))); }
       if (url.pathname.startsWith('/api/admin/')) {
         if (!await isAdmin(request, env)) return json({ error:'AUTH_REQUIRED' },401);
         if (url.pathname === '/api/admin/session') return json({authenticated:true});
@@ -377,24 +413,7 @@ export default {
         if (url.pathname === '/api/admin/drafts/publish-safe' && request.method === 'POST') {
           const body = await bodyJson(request);
           if (body.confirm !== true) return json({ error: 'CONFIRMATION_REQUIRED', message: 'Confirma la publicación segura desde el panel.' }, 400);
-          const candidates = await dbRows(env.DB, "SELECT d.*,c.slug AS category_slug,s.trust_level AS source_trust_level FROM news_drafts d LEFT JOIN categories c ON c.id=d.category_id LEFT JOIN raw_posts r ON r.id=d.raw_post_id LEFT JOIN sources s ON s.id=r.source_id WHERE d.editorial_status='DRAFT' ORDER BY d.updated_at DESC LIMIT 50");
-          let published = 0;
-          let alreadyPublished = 0;
-          let skipped = 0;
-          let failed = 0;
-          for (const item of candidates) {
-            const check = classify(item.summary || item.body || item.title, { trust_level: item.source_trust_level });
-            if (!['OFFICIAL', 'TRUSTED_MEDIA'].includes(String(item.source_trust_level || '')) || !SAFE_BULK_CATEGORIES.has(String(item.category_slug || '')) || check.status !== 'RELEVANT' || check.sensitive) { skipped += 1; continue; }
-            try {
-              const result = await publishDraftRecord(env.DB, originOf(request), item);
-              if (result.created) published += 1; else alreadyPublished += 1;
-            } catch (error) {
-              failed += 1;
-              console.error('bulk_safe_publish', item.id, error.message);
-            }
-          }
-          await dbRun(env.DB, 'INSERT INTO events (event_name,metadata_json) VALUES (?,?)', 'bulk_safe_publish', JSON.stringify({ candidates: candidates.length, published, already_published: alreadyPublished, skipped, failed }));
-          return json({ ok: true, candidates: candidates.length, published, already_published: alreadyPublished, skipped, failed });
+          return json({ ok: true, ...(await publishSafeDrafts(env.DB, originOf(request))) });
         }
         const publish = url.pathname.match(/^\/api\/admin\/drafts\/(\d+)\/publish$/);
         if (publish && request.method === 'POST') { const body=await bodyJson(request); const item=await dbFirst(env.DB,'SELECT * FROM news_drafts WHERE id=?',Number(publish[1])); if(!item)return json({error:'DRAFT_NOT_FOUND'},404); if(item.verification_status==='VERIFY'&&body.verified!==true)return json({error:'VERIFICATION_REQUIRED'},409); const result=await publishDraftRecord(env.DB, originOf(request), item); return json({article:result.article},result.created?201:200); }
