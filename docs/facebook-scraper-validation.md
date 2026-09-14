@@ -120,3 +120,5 @@ La navegación pública ahora también enlaza `Política local`, manteniendo esa
 ## Nueva verificación pública — 2026-09-14
 
 La corrida `34880472749` terminó `SUCCESS`: leyó 9 fuentes activas desde D1, capturó 8 posts públicos reales de El Chilalo y El Churre, creó 2 nuevos, conservó 38 imágenes y registró 0 errores. CUA volvió a observar en Facebook contenido marcado como `Compartido con: Público`, incluido el post de El Chilalo con `fbid=1124869189875702` y la transmisión pública de El Churre sobre un incendio en Nueva Sullana. La captura se limita al texto, fecha y enlace visible; comentarios y reacciones no son necesarios para aceptar el post.
+
+La corrida regional `34882098911` leyó 9 fuentes activas, encontró 51 posts públicos, creó 3 nuevos, conservó 270 imágenes y registró 0 errores. Para validar sin autopublicar mientras el Worker actualizado espera despliegue, el workflow añadió `publish_safe` como booleano manual; `34883444410` lo probó correctamente en `false`, con 8 posts, 0 nuevos, 0 errores y `safe_publication=null`.
