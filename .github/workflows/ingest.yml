@@ -38,7 +38,14 @@ jobs:
           FACEBOOK_STORAGE_STATE_B64: ${{ secrets.FACEBOOK_STORAGE_STATE_B64 }}
           SULLANA_SCOPE: ${{ inputs.scope || 'all' }}
         run: |
-          python - <<'PY'
+          if command -v xvfb-run >/dev/null 2>&1; then
+            export PLAYWRIGHT_HEADLESS=0
+            run_prefix=(xvfb-run -a)
+          else
+            export PLAYWRIGHT_HEADLESS=1
+            run_prefix=()
+          fi
+          "${run_prefix[@]}" python - <<'PY'
           import json, os, subprocess, sys, urllib.error, urllib.request
           from urllib.parse import urlsplit, urlunsplit
           from pathlib import Path

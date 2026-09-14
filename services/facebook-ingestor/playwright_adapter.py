@@ -503,11 +503,17 @@ class PlaywrightFacebookSourceAdapter:
         if sync_playwright is None:
             raise RuntimeError(f"playwright unavailable: {PLAYWRIGHT_IMPORT_ERROR}")
         page_url, identifier = self._page_url(source)
-        page_urls = [page_url, f"https://m.facebook.com/{identifier}/"]
+        page_urls = [
+            page_url,
+            f"https://www.facebook.com/{identifier}/?sk=posts",
+            f"https://m.facebook.com/{identifier}/",
+        ]
         logger.info("opening source=%s url=%s", source.get("name", "unknown"), page_url)
         posts: list[dict[str, Any]] = []
         with sync_playwright() as playwright:
-            browser = playwright.chromium.launch(headless=True)
+            headless_value = os.getenv("PLAYWRIGHT_HEADLESS", "1").strip().lower()
+            headless = headless_value not in {"0", "false", "no"}
+            browser = playwright.chromium.launch(headless=headless)
             context_kwargs: dict[str, Any] = {"locale": "en-US", "viewport": {"width": 1365, "height": 900}}
             if self.storage_state:
                 context_kwargs["storage_state"] = self.storage_state
