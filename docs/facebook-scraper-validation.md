@@ -124,3 +124,5 @@ La corrida `34880472749` terminó `SUCCESS`: leyó 9 fuentes activas desde D1, c
 La corrida regional `34882098911` leyó 9 fuentes activas, encontró 51 posts públicos, creó 3 nuevos, conservó 270 imágenes y registró 0 errores. Para validar sin autopublicar mientras el Worker actualizado espera despliegue, el workflow añadió `publish_safe` como booleano manual; `34883444410` lo probó correctamente en `false`, con 8 posts, 0 nuevos, 0 errores y `safe_publication=null`.
 
 La corrección `237b917` restauró el cron probado `*/30 * * * *` después de no observar nuevos eventos automáticos con `17,47 * * * *`; se conserva la concurrencia serializada y el wrapper manual de respaldo. El cambio no toca producción, D1, autenticación, RSS, sitemap ni el dominio público.
+
+La corrida enfocada `34885105113` terminó `SUCCESS` sobre El Chilalo y El Churre: cargó 9 fuentes activas desde D1, capturó 9 posts públicos, creó 2 nuevos, conservó 42 imágenes y registró 0 errores. `publish_safe=false` dejó el lote como borrador; health posterior continuó en `WEB=OK`, `D1=OK`, `PLAYWRIGHT_ADAPTER` y `META_GRAPH=PENDING_EXTERNAL`.
