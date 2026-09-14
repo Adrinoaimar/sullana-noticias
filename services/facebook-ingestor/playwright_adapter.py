@@ -61,7 +61,7 @@ _RELATIVE_DATE = re.compile(
     r"(?:\s+(?:at|a las)\s+\d{1,2}:\d{2}\s*(?:am|pm)?)?$",
     re.I,
 )
-_POST_PATH = re.compile(r"/(?:posts|reel|permalink\.php)(?:/|$)", re.I)
+_CONTENT_PATH = re.compile(r"/(?:posts|reel|permalink\.php|photo)(?:/|$)", re.I)
 _MEDIA_HOSTS = {"facebook.com", "fbcdn.net", "fbsbx.com"}
 _PROFILE_MEDIA_LABEL = re.compile(r"(?:profile|perfil|avatar|logo|icon|ícono|icono)", re.I)
 _STOP_LINES = {
@@ -268,7 +268,8 @@ class PlaywrightFacebookSourceAdapter:
             absolute = urljoin("https://www.facebook.com/", href)
             parsed = urlsplit(absolute)
             is_reel = re.search(r"/reel(?:/|$)", parsed.path, re.I)
-            if _POST_PATH.search(parsed.path) and (identifier.lower() in parsed.path.lower() or is_reel):
+            is_photo = re.search(r"/photo(?:/|$)", parsed.path, re.I) and bool(parse_qs(parsed.query).get("fbid"))
+            if _CONTENT_PATH.search(parsed.path) and (identifier.lower() in parsed.path.lower() or is_reel or is_photo):
                 canonical = _canonical_post_url(absolute)
                 if canonical:
                     candidates.append(canonical)
