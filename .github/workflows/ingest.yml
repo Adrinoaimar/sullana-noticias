@@ -2,8 +2,8 @@ name: Sullana Noticias · ingesta pública
 
 on:
   schedule:
-    # Intervalo probado de aproximadamente 30 minutos.
-    - cron: "*/30 * * * *"
+    # Aproximadamente cada 30 minutos, fuera de :00/:30 para reducir retrasos.
+    - cron: "7,37 * * * *"
   workflow_call:
     inputs:
       scope:
