@@ -337,6 +337,7 @@ class PlaywrightFacebookSourceAdapter:
         try:
             anchors = article.locator("a")
             fallback_anchor = None
+            anchor_summary: list[dict[str, Any]] = []
             for index in range(min(anchors.count(), 16)):
                 anchor = anchors.nth(index)
                 try:
@@ -350,14 +351,20 @@ class PlaywrightFacebookSourceAdapter:
                     ]
                 except Exception:
                     continue
+                parsed_href = urlsplit(urljoin("https://www.facebook.com/", href))
+                anchor_summary.append({
+                    "path": parsed_href.path[:120],
+                    "has_fragment": bool(parsed_href.fragment),
+                    "labels": [_clean_line(label)[:80] for label in labels if _clean_line(label)][:3],
+                })
                 if not any(_looks_like_date_label(label) for label in labels):
-                    parsed_href = urlsplit(urljoin("https://www.facebook.com/", href))
                     if parsed_href.path.rstrip("/").lower() == f"/{identifier}".lower() and parsed_href.fragment:
                         fallback_anchor = anchor
                     continue
                 fallback_anchor = anchor
                 break
             if fallback_anchor is None:
+                logger.info("source=%s timestamp_anchor_candidates=%s", identifier, json.dumps(anchor_summary, ensure_ascii=False))
                 return None
             anchor = fallback_anchor
             try:
