@@ -83,14 +83,15 @@ function adSlot(env, position) {
   return `<aside class="ad" data-ad-network="${esc(network)}" aria-label="Espacio publicitario"><span>Publicidad</span><small>${esc(position)}</small></aside>`;
 }
 
-function layout(env, request, title, description, body, extra = '') {
-  const origin = originOf(request);
+function layout(env, request, title, description, body, extra = '', canonicalOverride = '') {
+  const origin = canonicalOverride || originOf(request);
+  const siteOrigin = originOf(request);
   const ga = String(env.GA4_MEASUREMENT_ID || '').replace(/[^A-Za-z0-9_-]/g, '');
-  const ogImage = `${origin}/og-default.svg`;
+  const ogImage = `${siteOrigin}/og-default.svg`;
   const analytics = ga ? `<script async src="https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(ga)}"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${ga}',{anonymize_ip:true});</script>` : '';
   const siteSchema = JSON.stringify([
-    { '@context': 'https://schema.org', '@type': 'Organization', name: 'Sullana Noticias', url: origin, logo: ogImage },
-    { '@context': 'https://schema.org', '@type': 'WebSite', name: 'Sullana Noticias', url: origin, inLanguage: 'es-PE' },
+    { '@context': 'https://schema.org', '@type': 'Organization', name: 'Sullana Noticias', url: siteOrigin, logo: ogImage },
+    { '@context': 'https://schema.org', '@type': 'WebSite', name: 'Sullana Noticias', url: siteOrigin, inLanguage: 'es-PE' },
   ]);
   return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title><meta name="description" content="${esc(description)}"><link rel="canonical" href="${esc(origin)}"><meta property="og:type" content="website"><meta property="og:site_name" content="Sullana Noticias"><meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(description)}"><meta property="og:url" content="${esc(origin)}"><meta property="og:image" content="${esc(ogImage)}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${esc(ogImage)}"><script type="application/ld+json">${siteSchema}</script><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23e86f42'/%3E%3Ctext x='32' y='40' text-anchor='middle' font-family='Arial' font-size='22' font-weight='700' fill='white'%3ESN%3C/text%3E%3C/svg%3E"><style>${STYLE}</style>${analytics}${extra}</head><body><a class="skip" href="#contenido">Saltar al contenido</a><header class="header"><div class="shell header-row"><a class="brand" href="/"><span class="mark">SN</span><span>Sullana<br><strong>Noticias</strong></span></a><nav class="nav" aria-label="Navegación"><a href="/">Inicio</a><a href="/categoria/actualidad">Actualidad</a><a href="/categoria/servicios">Servicios</a><a href="/categoria/seguridad">Seguridad</a><a href="/admin">Panel</a></nav></div></header>${adSlot(env, 'header')}<main id="contenido">${body}</main><footer class="footer"><div class="shell"><strong>Sullana Noticias</strong><p>Información local, fuentes identificables y revisión humana.</p><a href="/rss.xml">RSS</a> · <a href="/sitemap.xml">Mapa del sitio</a></div></footer><script>${CLIENT_JS}</script></body></html>`;
 }
@@ -116,7 +117,7 @@ async function category(env, request, slug) {
   if (env.DB) await dbRun(env.DB, 'INSERT INTO events (event_name,article_id,metadata_json) VALUES (?,?,?)', 'category_view', null, JSON.stringify({ path: new URL(request.url).pathname, category: slug }));
   const title = category?.name || 'Actualidad';
   const body = `<section class="shell section"><div class="kicker">Archivo local</div><h1>${esc(title)}</h1><p class="lede">Noticias y publicaciones editoriales de ${esc(title.toLowerCase())} en Sullana y la provincia.</p></section><section class="shell section"><div class="grid">${articles.length ? articles.map(card).join('') : '<div class="empty"><strong>Aún no hay publicaciones.</strong><p>Los artículos aprobados aparecerán aquí.</p></div>'}</div></section>`;
-  return html(layout(env, request, `${title} · Sullana Noticias`, `Noticias de ${title.toLowerCase()} en Sullana, Piura.`, body));
+  return html(layout(env, request, `${title} · Sullana Noticias`, `Noticias de ${title.toLowerCase()} en Sullana, Piura.`, body, '', `${originOf(request)}/categoria/${encodeURIComponent(slug)}`));
 }
 
 async function article(env, request, slug) {
@@ -134,7 +135,8 @@ async function article(env, request, slug) {
     await dbRun(env.DB, 'UPDATE articles SET view_count=view_count+1 WHERE id=?', item.id);
     await dbRun(env.DB, 'INSERT INTO events (event_name,article_id,metadata_json) VALUES (?,?,?)', 'article_view', item.id, JSON.stringify({ path: new URL(request.url).pathname }));
   }
-  return html(layout(env, request, item.meta_title || `${item.title} · Sullana Noticias`, item.meta_description || item.dek, body, extra));
+  const articleExtra = extra.replace(`<link rel="canonical" href="${esc(canonical)}">`, '').replace(`<meta property="og:url" content="${esc(canonical)}">`, '');
+  return html(layout(env, request, item.meta_title || `${item.title} · Sullana Noticias`, item.meta_description || item.dek, body, articleExtra, canonical));
 }
 
 async function dashboard(env) {

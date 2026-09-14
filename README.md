@@ -101,6 +101,7 @@ El servidor Node/SQLite local requiere además un proceso persistente y almacena
 5. Programar una ejecución cada 20–30 minutos con límite, timeout y backoff.
 6. Activar solo fuentes revisadas; no activar `auto_publish`.
 7. Configurar `GA4_MEASUREMENT_ID` con un ID real y validar consentimiento/privacidad.
+   El panel ya muestra analytics first-party desde D1 (`article_view`, `category_view`, fuentes y compartidos); GA4 sigue siendo opcional.
 8. Configurar `AD_NETWORK`/`AD_ZONE_ID`; el MVP solo reserva slots y no inyecta scripts de terceros inventados.
 9. Configurar Adsterra/Monetag solo después de revisar sus términos vigentes y recibir su snippet/IDs.
 
