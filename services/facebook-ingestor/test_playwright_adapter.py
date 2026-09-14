@@ -38,6 +38,11 @@ class PlaywrightTextExtractionTests(unittest.TestCase):
         text = MODULE.PlaywrightFacebookSourceAdapter._video_text(lines)
         self.assertEqual(text, "#Sullana\nTexto principal de la publicación pública.")
 
+    def test_relative_labels_are_recognized_for_same_visible_caption(self):
+        self.assertTrue(MODULE._is_relative_date_label("6m"))
+        self.assertTrue(MODULE._is_relative_date_label("7m"))
+        self.assertFalse(MODULE._is_relative_date_label("June 24, 2022"))
+
 
 if __name__ == "__main__":
     unittest.main()

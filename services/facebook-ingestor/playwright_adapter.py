@@ -221,6 +221,10 @@ def _looks_like_date_label(value: Any) -> bool:
     )
 
 
+def _is_relative_date_label(value: Any) -> bool:
+    return bool(_RELATIVE_DATE.fullmatch(_clean_line(str(value or "")).lower()))
+
+
 def _html_attribute(attributes: str, name: str) -> str:
     match = re.search(rf"\b{name}\s*=\s*(['\"])(.*?)\1", attributes, flags=re.I | re.S)
     return html.unescape(match.group(2)) if match else ""
@@ -1080,7 +1084,15 @@ class PlaywrightFacebookSourceAdapter:
                 same_url = post.get("post_url") and existing.get("post_url") == post.get("post_url")
                 existing_text_key = re.sub(r"\s+", " ", str(existing.get("text") or "")).strip().casefold()
                 existing_date_key = str(existing.get("published_at") or "").strip().casefold()
-                same_content = bool(text_key and len(text_key) >= 40 and text_key == existing_text_key and date_key == existing_date_key)
+                same_content = bool(
+                    text_key
+                    and len(text_key) >= 40
+                    and text_key == existing_text_key
+                    and (
+                        date_key == existing_date_key
+                        or (_is_relative_date_label(date_key) and _is_relative_date_label(existing_date_key))
+                    )
+                )
                 if not (same_id or same_url or same_content):
                     continue
                 if len(str(post.get("text") or "")) > len(str(existing.get("text") or "")) or len(post.get("media") or []) > len(existing.get("media") or []):
