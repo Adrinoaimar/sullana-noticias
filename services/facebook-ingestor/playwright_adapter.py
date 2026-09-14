@@ -83,16 +83,37 @@ _STOP_LINES = {
     "write a comment",
     "escribe un comentario",
     "most relevant",
+    "related videos",
+    "related reels",
+    "videos relacionados",
+    "reels relacionados",
+    "learn more",
 }
 _PLAYBACK_ERROR = re.compile(
     r"^(?:sorry, we're having trouble playing this video|"
     r"lo sentimos, tenemos problemas para reproducir este video)\.?$",
     re.I,
 )
+_PLAYBACK_ERROR_FRAGMENT = re.compile(
+    r"\s*(?:sorry, we're having trouble playing this video|"
+    r"lo sentimos, tenemos problemas para reproducir este video)\.?"
+    r"\s*(?:learn more|más información)?\s*$",
+    re.I,
+)
+_NON_CONTENT_IMAGE_ALT = re.compile(
+    r"(?:emoji|sticker|reaction|newsfeed|profile|perfil|avatar|logo|icon|ícono|icono|cover|portada)",
+    re.I,
+)
 
 
 def _clean_line(value: str) -> str:
     return re.sub(r"\s+", " ", str(value or "").replace("\xa0", " ")).strip()
+
+
+def _strip_playback_error(value: str) -> str:
+    """Remove Facebook's visible player error suffix without changing captions."""
+    cleaned = _clean_line(value)
+    return _PLAYBACK_ERROR_FRAGMENT.sub("", cleaned).strip()
 
 
 def _text_signature(value: str) -> set[str]:
@@ -284,9 +305,10 @@ class PlaywrightFacebookSourceAdapter:
         start = date_index + 1 if date_index >= 0 else 0
         content: list[str] = []
         for raw_line in lines[start:]:
-            line = _clean_line(raw_line)
+            original_line = _clean_line(raw_line)
+            line = _strip_playback_error(original_line)
             lowered = line.lower()
-            if _PLAYBACK_ERROR.fullmatch(line):
+            if original_line and not line:
                 continue
             engagement = re.search(r"\b(?:like|me gusta)\s+(?:comment|comentar)\s+(?:share|compartir)\b", line, flags=re.I)
             if engagement:
@@ -444,11 +466,20 @@ class PlaywrightFacebookSourceAdapter:
             start = next((index for index, line in enumerate(lines) if "#" in line), 0)
         content: list[str] = []
         for raw_line in lines[start:]:
-            line = _clean_line(raw_line)
+            original_line = _clean_line(raw_line)
+            line = _strip_playback_error(original_line)
             lowered = line.lower()
-            if _PLAYBACK_ERROR.fullmatch(line):
-                continue
-            if lowered.startswith(("like comment share", "me gusta comentar compartir")):
+            if original_line and not line:
+                break
+            if lowered in _STOP_LINES or lowered.startswith(("like comment share", "me gusta comentar compartir")):
+                break
+            if re.fullmatch(r"(?:related|recommended)\s+(?:reels|videos)", lowered):
+                break
+            if lowered in {"like", "comment", "share", "me gusta", "comentar", "compartir", "comments", "comentarios"}:
+                break
+            if content and re.fullmatch(r"\d+:\d+(?:\s*/\s*\d+:\d+)?", line):
+                break
+            if content and re.fullmatch(r"[\d,.]+\s*[kKmM]?\s+views?", line):
                 break
             if re.search(r"(?:all\s+reactions|todas\s+las\s+reacciones|reacciones)", lowered):
                 break
@@ -894,11 +925,13 @@ class PlaywrightFacebookSourceAdapter:
                 continue
             candidates = [item.get("src"), *_srcset_candidates(item.get("srcset"))]
             alt = _clean_line(item.get("alt") or "")
-            if _PROFILE_MEDIA_LABEL.search(alt):
+            if _NON_CONTENT_IMAGE_ALT.search(alt):
                 continue
             url = None
             for candidate in candidates:
                 url = _public_media_url(candidate)
+                if url and (urlsplit(url).hostname or "").lower() == "static.xx.fbcdn.net":
+                    url = None
                 if url:
                     break
             if url and url not in seen:
