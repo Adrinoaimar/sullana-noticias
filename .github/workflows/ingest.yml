@@ -4,6 +4,15 @@ on:
   schedule:
     - cron: "*/30 * * * *"
   workflow_dispatch:
+    inputs:
+      scope:
+        description: "Fuentes para una prueba manual"
+        required: false
+        default: all
+        type: choice
+        options:
+          - all
+          - chilalo-churre
 
 permissions:
   contents: read
@@ -27,6 +36,7 @@ jobs:
           SULLANA_INGEST_URL: ${{ secrets.SULLANA_INGEST_URL }}
           SULLANA_INGEST_TOKEN: ${{ secrets.SULLANA_INGEST_TOKEN }}
           FACEBOOK_STORAGE_STATE_B64: ${{ secrets.FACEBOOK_STORAGE_STATE_B64 }}
+          SULLANA_SCOPE: ${{ inputs.scope || 'all' }}
         run: |
           python - <<'PY'
           import json, os, subprocess, sys, urllib.request
@@ -37,6 +47,9 @@ jobs:
           if not endpoint or not token:
               raise SystemExit("Missing SULLANA_INGEST_URL or SULLANA_INGEST_TOKEN repository secrets")
           sources = json.loads(Path("config/public-sources.json").read_text())
+          if os.environ.get("SULLANA_SCOPE") == "chilalo-churre":
+              focus = {"ElChilaloNoticias", "elchurrenoticiasoficialsullana"}
+              sources = [source for source in sources if source.get("facebook_identifier") in focus]
           request = {"sources": sources, "page_limit": 8, "timeout": 25, "retries": 2, "min_interval": 30, "scroll_limit": 3}
           run = subprocess.run([sys.executable, "services/facebook-ingestor/run.py"], input=json.dumps(request), text=True, capture_output=True, check=False)
           if run.stderr.strip():

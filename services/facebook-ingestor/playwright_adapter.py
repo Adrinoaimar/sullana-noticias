@@ -276,6 +276,42 @@ class PlaywrightFacebookSourceAdapter:
         return candidates[0] if candidates else None
 
     @staticmethod
+    def _dom_permalink(article: Any, identifier: str) -> str | None:
+        """Recover a public post permalink from visible article metadata.
+
+        Some Facebook layouts render the post text before exposing its anchor.
+        Only post identifiers already attached to the public article are used;
+        no identifier is guessed from the text or from a neighboring post.
+        """
+        selectors = "[data-ft], [data-pagelet], [data-id], [data-testid]"
+        try:
+            nodes = article.locator(selectors)
+            values: list[str] = []
+            for index in range(min(nodes.count(), 80)):
+                node = nodes.nth(index)
+                for name in ("data-ft", "data-pagelet", "data-id", "data-testid"):
+                    value = node.get_attribute(name)
+                    if value:
+                        values.append(value)
+        except Exception:
+            values = []
+        patterns = (
+            r'"top_level_post_id"\s*:\s*"([^"\\]+)"',
+            r'"post_id"\s*:\s*"([^"\\]+)"',
+            r'"story_fbid"\s*:\s*"?([A-Za-z0-9_.-]+)',
+            r'FeedUnit[_:-]([A-Za-z0-9_.-]+)',
+        )
+        for value in values:
+            for pattern in patterns:
+                match = re.search(pattern, value, re.I)
+                if not match:
+                    continue
+                post_id = match.group(1).strip()
+                if post_id and post_id not in {identifier, "0"}:
+                    return _canonical_post_url(f"https://www.facebook.com/{identifier}/posts/{post_id}")
+        return None
+
+    @staticmethod
     def _media(article: Any) -> list[dict[str, Any]]:
         """Extract public media metadata from the visible article DOM.
 
@@ -351,7 +387,7 @@ class PlaywrightFacebookSourceAdapter:
                         break
                 except Exception:
                     continue
-            permalink = self._permalink(article, identifier)
+            permalink = self._permalink(article, identifier) or self._dom_permalink(article, identifier)
             if not permalink:
                 logger.info(
                     "source=%s article_skip=no_permalink anchors=%d",
