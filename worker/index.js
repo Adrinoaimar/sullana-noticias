@@ -301,14 +301,19 @@ async function refreshImprovedRawPost(db, raw, source, post, hash, media, image)
   const nextHash = hashOwner ? raw.content_hash : hash;
   const draft = await dbFirst(db, 'SELECT * FROM news_drafts WHERE raw_post_id=?', raw.id);
   const article = draft && await dbFirst(db, 'SELECT * FROM articles WHERE draft_id=?', draft.id);
+  const previousEditorial = buildEditorialCopy(previousText, source.name);
+  const isGenerated = (value, fallback) => {
+    const current = String(value || '').trim();
+    return current === previousText || current === String(fallback || '').trim();
+  };
   const generatedDraft = draft && (
-    String(draft.body || '') === previousText ||
-    String(draft.summary || '') === previousText ||
+    isGenerated(draft.body, previousEditorial.body) ||
+    isGenerated(draft.summary, previousEditorial.summary) ||
     String(draft.dek || '') === 'Borrador pendiente de revisión editorial.'
   );
   const generatedArticle = article && (
-    String(article.body || '') === previousText ||
-    String(article.summary || '') === previousText ||
+    isGenerated(article.body, previousEditorial.body) ||
+    isGenerated(article.summary, previousEditorial.summary) ||
     String(article.dek || '') === 'Borrador pendiente de revisión editorial.'
   );
 

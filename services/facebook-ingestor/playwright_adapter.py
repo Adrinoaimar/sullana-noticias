@@ -64,7 +64,7 @@ _RELATIVE_DATE = re.compile(
 )
 _CONTENT_PATH = re.compile(r"/(?:posts|reel|videos|permalink\.php|photo)(?:/|$)", re.I)
 _MEDIA_HOSTS = {"facebook.com", "fbcdn.net", "fbsbx.com"}
-_PROFILE_MEDIA_LABEL = re.compile(r"(?:profile|perfil|avatar|logo|icon|ícono|icono)", re.I)
+_PROFILE_MEDIA_LABEL = re.compile(r"(?:profile|perfil|avatar|logo|icon|ícono|icono|cover|portada)", re.I)
 _STOP_LINES = {
     "all reactions:",
     "todas las reacciones:",
@@ -663,6 +663,7 @@ class PlaywrightFacebookSourceAdapter:
                     return {
                         index,
                         href: node.href || '',
+                        alt: node.querySelector('img')?.getAttribute('alt') || '',
                         visible: Boolean(node.getClientRects().length),
                         contexts
                     };
@@ -677,6 +678,9 @@ class PlaywrightFacebookSourceAdapter:
         seen: set[str] = set()
         for item in items if isinstance(items, list) else []:
             if not isinstance(item, dict) or not item.get("visible", True):
+                continue
+            media_alt = _clean_line(item.get("alt") or "")
+            if _PROFILE_MEDIA_LABEL.search(media_alt) or media_alt.lower() == source_name.lower():
                 continue
             candidate = _canonical_post_url(str(item.get("href") or ""))
             if not candidate or not _post_id(candidate) or candidate in seen:
@@ -990,6 +994,19 @@ class PlaywrightFacebookSourceAdapter:
         ]
         logger.info("opening source=%s url=%s", source.get("name", "unknown"), page_url)
         posts: list[dict[str, Any]] = []
+
+        def add_post(post: dict[str, Any]) -> None:
+            """Keep one best visible representation per post id or URL."""
+            for index, existing in enumerate(posts):
+                same_id = post.get("post_id") and existing.get("post_id") == post.get("post_id")
+                same_url = post.get("post_url") and existing.get("post_url") == post.get("post_url")
+                if not (same_id or same_url):
+                    continue
+                if len(str(post.get("text") or "")) > len(str(existing.get("text") or "")) or len(post.get("media") or []) > len(existing.get("media") or []):
+                    posts[index] = post
+                return
+            posts.append(post)
+
         with sync_playwright() as playwright:
             headless_value = os.getenv("PLAYWRIGHT_HEADLESS", "1").strip().lower()
             headless = headless_value not in {"0", "false", "no"}
@@ -1030,13 +1047,12 @@ class PlaywrightFacebookSourceAdapter:
                         logger.info("source=%s variant=%d articles=%d", source.get("name", "unknown"), variant_index + 1, article_count)
                         for index in range(min(article_count, self.page_limit * 4)):
                             post = self._extract_article(articles.nth(index), source, identifier, page)
-                            if post and post["post_url"] not in {item["post_url"] for item in posts}:
-                                posts.append(post)
+                            if post:
+                                add_post(post)
                             if len(posts) >= self.page_limit:
                                 break
                         for post in self._photo_context_posts(page, source, identifier):
-                            if post["post_url"] not in {item["post_url"] for item in posts}:
-                                posts.append(post)
+                            add_post(post)
                             if len(posts) >= self.page_limit:
                                 break
                         for photo_url in self._photo_candidates(page, identifier):
@@ -1066,8 +1082,8 @@ class PlaywrightFacebookSourceAdapter:
                                     )
                                     break
                                 post = self._extract_photo_page(detail_page, source, identifier, photo_url)
-                                if post and post["post_url"] not in {item["post_url"] for item in posts}:
-                                    posts.append(post)
+                                if post:
+                                    add_post(post)
                                     logger.info("source=%s captured_via=photo_detail url=%s", source.get("name", "unknown"), post["post_url"])
                             except PlaywrightTimeoutError:
                                 logger.warning("source=%s photo_detail_timeout url=%s", source.get("name", "unknown"), photo_url)
@@ -1092,8 +1108,8 @@ class PlaywrightFacebookSourceAdapter:
                                     )
                                     break
                                 post = self._extract_video_page(detail_page, source, identifier, video_url)
-                                if post and post["post_url"] not in {item["post_url"] for item in posts}:
-                                    posts.append(post)
+                                if post:
+                                    add_post(post)
                                     logger.info("source=%s captured_via=video_detail url=%s", source.get("name", "unknown"), post["post_url"])
                             except PlaywrightTimeoutError:
                                 logger.warning("source=%s video_detail_timeout url=%s", source.get("name", "unknown"), video_url)
