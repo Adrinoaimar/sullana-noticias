@@ -361,7 +361,7 @@ export default {
         if (url.pathname === '/api/admin/drafts/publish-safe' && request.method === 'POST') {
           const body = await bodyJson(request);
           if (body.confirm !== true) return json({ error: 'CONFIRMATION_REQUIRED', message: 'Confirma la publicación segura desde el panel.' }, 400);
-          const candidates = await dbRows(env.DB, "SELECT d.*,c.slug AS category_slug,s.trust_level AS source_trust_level FROM news_drafts d LEFT JOIN categories c ON c.id=d.category_id LEFT JOIN sources s ON s.id=d.source_id WHERE d.editorial_status='DRAFT' ORDER BY d.updated_at DESC LIMIT 50");
+          const candidates = await dbRows(env.DB, "SELECT d.*,c.slug AS category_slug,s.trust_level AS source_trust_level FROM news_drafts d LEFT JOIN categories c ON c.id=d.category_id LEFT JOIN raw_posts r ON r.id=d.raw_post_id LEFT JOIN sources s ON s.id=r.source_id WHERE d.editorial_status='DRAFT' ORDER BY d.updated_at DESC LIMIT 50");
           let published = 0;
           let alreadyPublished = 0;
           let skipped = 0;
