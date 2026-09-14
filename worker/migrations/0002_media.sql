@@ -1,0 +1,3 @@
+ALTER TABLE raw_posts ADD COLUMN media_json TEXT NOT NULL DEFAULT '[]';
+ALTER TABLE news_drafts ADD COLUMN media_json TEXT NOT NULL DEFAULT '[]';
+ALTER TABLE articles ADD COLUMN media_json TEXT NOT NULL DEFAULT '[]';

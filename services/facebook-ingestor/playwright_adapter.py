@@ -62,6 +62,8 @@ _RELATIVE_DATE = re.compile(
     re.I,
 )
 _POST_PATH = re.compile(r"/(?:posts|reel|permalink\.php)(?:/|$)", re.I)
+_MEDIA_HOSTS = {"facebook.com", "fbcdn.net", "fbsbx.com"}
+_PROFILE_MEDIA_LABEL = re.compile(r"(?:profile|perfil|avatar|logo|icon|ícono|icono)", re.I)
 _STOP_LINES = {
     "all reactions:",
     "todas las reacciones:",
@@ -141,6 +143,29 @@ def _published_value(label: str) -> str | None:
         except ValueError:
             return label
     return label
+
+
+def _public_media_url(value: Any) -> str | None:
+    """Keep only public Facebook/CDN media URLs; never return blob/data URLs."""
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    parsed = urlsplit(urljoin("https://www.facebook.com/", raw))
+    hostname = (parsed.hostname or "").lower().rstrip(".")
+    if parsed.scheme not in {"http", "https"} or not any(
+        hostname == domain or hostname.endswith(f".{domain}") for domain in _MEDIA_HOSTS
+    ):
+        return None
+    return urlunsplit(("https", parsed.netloc, parsed.path, parsed.query, ""))
+
+
+def _srcset_candidates(value: Any) -> list[str]:
+    candidates: list[str] = []
+    for item in str(value or "").split(","):
+        candidate = item.strip().split(" ", 1)[0]
+        if candidate:
+            candidates.append(candidate)
+    return candidates
 
 
 class PlaywrightFacebookSourceAdapter:
@@ -249,6 +274,72 @@ class PlaywrightFacebookSourceAdapter:
                     candidates.append(canonical)
         return candidates[0] if candidates else None
 
+    @staticmethod
+    def _media(article: Any) -> list[dict[str, Any]]:
+        """Extract public media metadata from the visible article DOM.
+
+        URLs are retained as references only. The Worker does not download or
+        republish third-party media automatically; signed CDN URLs may expire.
+        """
+        media: list[dict[str, Any]] = []
+        seen: set[str] = set()
+
+        try:
+            images = article.locator("img").evaluate_all(
+                """nodes => nodes.map(node => ({
+                    src: node.currentSrc || node.src || node.getAttribute('data-src') || '',
+                    srcset: node.getAttribute('srcset') || '',
+                    alt: node.getAttribute('alt') || node.getAttribute('aria-label') || ''
+                }))"""
+            )
+        except Exception:
+            images = []
+        for item in images if isinstance(images, list) else []:
+            if not isinstance(item, dict):
+                continue
+            candidates = [item.get("src"), *_srcset_candidates(item.get("srcset"))]
+            alt = _clean_line(item.get("alt") or "")
+            if _PROFILE_MEDIA_LABEL.search(alt):
+                continue
+            url = None
+            for candidate in candidates:
+                url = _public_media_url(candidate)
+                if url:
+                    break
+            if url and url not in seen:
+                media.append({"kind": "image", "url": url, "alt": alt[:160]})
+                seen.add(url)
+            if len(media) >= 6:
+                return media
+
+        try:
+            videos = article.locator("video, video source").evaluate_all(
+                """nodes => nodes.map(node => ({
+                    src: node.currentSrc || node.src || node.getAttribute('src') || '',
+                    poster: node.poster || node.getAttribute('poster') || ''
+                }))"""
+            )
+        except Exception:
+            videos = []
+        for item in videos if isinstance(videos, list) else []:
+            if not isinstance(item, dict):
+                continue
+            url = _public_media_url(item.get("src"))
+            poster = _public_media_url(item.get("poster"))
+            if not url and not poster:
+                continue
+            key = url or poster
+            if key in seen:
+                continue
+            entry: dict[str, Any] = {"kind": "video", "url": url}
+            if poster:
+                entry["poster"] = poster
+            media.append(entry)
+            seen.add(key)
+            if len(media) >= 6:
+                break
+        return media
+
     def _extract_article(self, article: Any, source: dict[str, Any], identifier: str) -> dict[str, Any] | None:
         try:
             for label in ("See more", "Ver más"):
@@ -280,6 +371,9 @@ class PlaywrightFacebookSourceAdapter:
                     len(lines),
                 )
                 return None
+            media = self._media(article)
+            images = [item for item in media if item.get("kind") == "image"]
+            videos = [item for item in media if item.get("kind") == "video"]
             return {
                 "source_id": source.get("id"),
                 "source_url": source.get("facebook_url"),
@@ -290,7 +384,9 @@ class PlaywrightFacebookSourceAdapter:
                 "published_at": _published_value(date_label),
                 "published_at_raw": date_label,
                 "post_url": permalink,
-                "image": None,
+                "media": media,
+                "image": images[0]["url"] if images else None,
+                "video": videos[0].get("url") if videos else None,
                 "likes": None,
                 "comments": None,
                 "shares": None,

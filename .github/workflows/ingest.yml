@@ -37,7 +37,7 @@ jobs:
           if not endpoint or not token:
               raise SystemExit("Missing SULLANA_INGEST_URL or SULLANA_INGEST_TOKEN repository secrets")
           sources = json.loads(Path("config/public-sources.json").read_text())
-          request = {"sources": sources, "page_limit": 3, "timeout": 25, "retries": 2, "min_interval": 30, "scroll_limit": 2}
+          request = {"sources": sources, "page_limit": 8, "timeout": 25, "retries": 2, "min_interval": 30, "scroll_limit": 3}
           run = subprocess.run([sys.executable, "services/facebook-ingestor/run.py"], input=json.dumps(request), text=True, capture_output=True, check=False)
           if run.stderr.strip():
               print(run.stderr, file=sys.stderr, end="")

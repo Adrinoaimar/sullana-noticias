@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 def main() -> int:
     request = json.load(sys.stdin)
-    adapter = PlaywrightFacebookSourceAdapter(request.get("page_limit", 3), request.get("timeout", 25), request.get("scroll_limit", 2))
+    adapter = PlaywrightFacebookSourceAdapter(request.get("page_limit", 8), request.get("timeout", 25), request.get("scroll_limit", 3))
     retries = max(0, min(int(request.get("retries", os.getenv("SCRAPER_RETRIES", "2"))), 4))
     min_interval = max(0, min(int(request.get("min_interval", os.getenv("SCRAPER_MIN_INTERVAL_SECONDS", "30"))), 300))
     all_posts: list[dict[str, Any]] = []

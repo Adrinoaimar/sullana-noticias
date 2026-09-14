@@ -8,7 +8,7 @@ MVP editorial mobile-first para descubrir publicaciones públicas, convertir hal
 - Pipeline: fuente pública → ingesta → deduplicación → relevancia local → borrador → revisión → publicación.
 - `PlaywrightFacebookSourceAdapter` encapsula la captura pública de Facebook; `kevinzg/facebook-scraper` queda como validación histórica, no como método principal.
 - Autopublicación global desactivada. Posts sensibles quedan en `VERIFY`.
-- Fuentes de ejemplo entran pausadas (`enabled = 0`) hasta revisión editorial.
+- Las fuentes institucionales de ejemplo permanecen pausadas hasta revisión editorial; las dos páginas de medios públicos incorporadas para esta fase se revisan como `TRUSTED_MEDIA` y sus hallazgos siempre exigen verificación.
 - El fixture de demo no es una noticia real. Ejecutar `SEED_DEMO_ARTICLE=0 npm run seed` antes de un lanzamiento real.
 - Analytics y slots de monetización están opt-in: sin IDs/configuración real permanecen inactivos.
 - El Worker ESM de producción (`worker/index.js`) sirve la web y persiste en D1; el servidor Node/SQLite queda como referencia local.
@@ -46,7 +46,7 @@ pip install -r services/facebook-ingestor/requirements.txt
 
 El adaptador usa Playwright sobre páginas públicas, sin login automatizado, CAPTCHA, grupos privados ni evasión de controles. El servidor requiere que una fuente esté activa antes de revisarla. Cada fuente conserva `last_checked_at`, `last_success_at` y los errores de la ejecución. Si una página falla después de los reintentos, el Worker la pausa para revisión y continúa con las demás.
 
-La prueba histórica de `kevinzg/facebook-scraper` queda documentada, pero la captura principal ahora es `PlaywrightFacebookSourceAdapter`, inspirada en [playwright-Facebook-scraper](https://github.com/Lencho123/playwright-Facebook-scraper). En pruebas públicas con navegador, las tres páginas iniciales de Sullana expusieron artículos visibles; el adapter conserva texto, fecha/etiqueta, fuente y URL canónica, sin copiar contenido adicional ni inventar campos.
+La prueba histórica de `kevinzg/facebook-scraper` queda documentada, pero la captura principal ahora es `PlaywrightFacebookSourceAdapter`, inspirada en [playwright-Facebook-scraper](https://github.com/Lencho123/playwright-Facebook-scraper). La configuración revisa siete páginas públicas de Sullana y captura hasta ocho posts visibles por fuente y ejecución. Conserva texto, fecha/etiqueta, fuente, URL canónica y metadatos de hasta seis fotos/videos públicos encontrados en el DOM; esos enlaces pueden caducar y no se descargan ni republican automáticamente.
 
 ### Ruta Meta Graph API (futuro)
 
@@ -58,7 +58,7 @@ Si Facebook exige una sesión para una fuente concreta, el workflow acepta opcio
 
 1. Panel: activar una fuente verificada.
 2. `POST /api/admin/ingest` revisa fuentes activas.
-3. `raw_posts` conserva texto, fecha, URL, hash e imagen.
+3. `raw_posts` conserva texto, fecha, URL, hash e inventario de medios públicos (`media_json`); el panel permite abrir las referencias originales para revisión.
 4. Relevancia detecta señales locales; contenido sensible exige `VERIFY`.
 5. `auto_draft` crea borrador. Redacción inicial queda limitada al texto confirmado.
 6. Editor corrige y confirma publicación explícitamente.
@@ -98,7 +98,7 @@ El servidor Node/SQLite local requiere además un proceso persistente y almacena
 2. Configurar `SITE_URL` con dominio real y `NODE_ENV=production`.
 3. Montar `data/` como volumen persistente o migrar las consultas a D1/PostgreSQL.
 4. Instalar `services/facebook-ingestor/requirements.txt` en worker Python.
-5. Programar una ejecución cada 20–30 minutos con límite, timeout y backoff.
+5. Programar una ejecución cada 20–30 minutos con límite, timeout, rate limiting y backoff.
 6. Activar solo fuentes revisadas; no activar `auto_publish`.
 7. Configurar `GA4_MEASUREMENT_ID` con un ID real y validar consentimiento/privacidad.
    El panel ya muestra analytics first-party desde D1 (`article_view`, `category_view`, fuentes y compartidos); GA4 sigue siendo opcional.
@@ -109,4 +109,4 @@ No se declaran dominio, ingresos, analytics ni aprobación publicitaria sin cred
 
 ## Privacidad y derechos
 
-Las publicaciones de Facebook son señales de descubrimiento, no verdad absoluta. No reutilizar imágenes de terceros sin autorización. Conservar enlace original. No copiar literalmente. No inventar nombres, cifras, causas, responsables ni consecuencias.
+Las publicaciones de Facebook son señales de descubrimiento, no verdad absoluta. Las fotos y videos de terceros se conservan como referencias públicas para el editor; no se reutilizan ni se sirven en artículos sin autorización documentada. Conservar enlace original. No copiar literalmente. No inventar nombres, cifras, causas, responsables ni consecuencias.

@@ -4,14 +4,16 @@ const db = openDatabase();
 insertBaseCategories(db);
 
 const sources = [
-  ['Turismo Sullana MPS', 'https://www.facebook.com/TurismoSullanaMPS/', 'TurismoSullanaMPS'],
-  ['Municipalidad Bellavista Oficial', 'https://www.facebook.com/MunicipalidadBellavistaOficial', 'MunicipalidadBellavistaOficial'],
-  ['Municipalidad Distrital de Marcavelica', 'https://www.facebook.com/munimarcavelica', 'munimarcavelica'],
-  ['Municipalidad Distrital de Querecotillo', 'https://www.facebook.com/MuniQuerecotillo', 'MuniQuerecotillo'],
-  ['Municipalidad Distrital de Ignacio Escudero', 'https://www.facebook.com/m.d.ignacio.escudero', 'm.d.ignacio.escudero'],
+  ['Turismo Sullana MPS', 'https://www.facebook.com/TurismoSullanaMPS/', 'TurismoSullanaMPS', 'OFFICIAL', 0],
+  ['Municipalidad Bellavista Oficial', 'https://www.facebook.com/MunicipalidadBellavistaOficial', 'MunicipalidadBellavistaOficial', 'OFFICIAL', 0],
+  ['Municipalidad Distrital de Marcavelica', 'https://www.facebook.com/munimarcavelica', 'munimarcavelica', 'OFFICIAL', 0],
+  ['Municipalidad Distrital de Querecotillo', 'https://www.facebook.com/MuniQuerecotillo', 'MuniQuerecotillo', 'OFFICIAL', 0],
+  ['Municipalidad Distrital de Ignacio Escudero', 'https://www.facebook.com/m.d.ignacio.escudero', 'm.d.ignacio.escudero', 'OFFICIAL', 0],
+  ['El Chilalo Noticias', 'https://www.facebook.com/ElChilaloNoticias/', 'ElChilaloNoticias', 'TRUSTED_MEDIA', 1],
+  ['Del Chira Noticias', 'https://www.facebook.com/delchiranoticias', 'delchiranoticias', 'TRUSTED_MEDIA', 1],
 ];
-const addSource = db.prepare('INSERT OR IGNORE INTO sources (name, facebook_url, facebook_identifier, trust_level, enabled, auto_draft, auto_publish) VALUES (?, ?, ?, ?, 0, 1, 0)');
-for (const source of sources) addSource.run(...source, 'OFFICIAL');
+const addSource = db.prepare('INSERT OR IGNORE INTO sources (name, facebook_url, facebook_identifier, trust_level, enabled, auto_draft, auto_publish) VALUES (?, ?, ?, ?, ?, 1, 0)');
+for (const source of sources) addSource.run(...source);
 
 if (process.env.SEED_DEMO_ARTICLE !== '0' && !db.prepare('SELECT id FROM articles WHERE slug = ?').get('demo-flujo-editorial-sullana')) {
   const source = db.prepare('SELECT * FROM sources WHERE facebook_identifier = ?').get('TurismoSullanaMPS');

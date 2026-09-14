@@ -17,6 +17,35 @@ const dbRows = async (db, sql, ...values) => (await db.prepare(sql).bind(...valu
 const dbFirst = async (db, sql, ...values) => (await db.prepare(sql).bind(...values).first()) || null;
 const dbRun = async (db, sql, ...values) => db.prepare(sql).bind(...values).run();
 const bodyJson = async (request) => { try { return await request.json(); } catch { return {}; } };
+const publicMediaUrl = (value) => {
+  try {
+    const url = new URL(String(value || '').trim());
+    const host = url.hostname.toLowerCase().replace(/\.$/, '');
+    const allowed = ['facebook.com', 'fbcdn.net', 'fbsbx.com'].some((domain) => host === domain || host.endsWith(`.${domain}`));
+    if (!allowed || !['http:', 'https:'].includes(url.protocol)) return null;
+    return url.toString();
+  } catch { return null; }
+};
+const normalizeMedia = (value, fallbackImage = null) => {
+  const input = Array.isArray(value) ? value : [];
+  const output = [];
+  const seen = new Set();
+  for (const item of input.slice(0, 8)) {
+    if (!item || !['image', 'video'].includes(String(item.kind))) continue;
+    const url = publicMediaUrl(item.url);
+    const poster = publicMediaUrl(item.poster);
+    const key = url || poster;
+    if (!key || seen.has(key)) continue;
+    const media = { kind: String(item.kind), url };
+    if (poster) media.poster = poster;
+    if (item.alt) media.alt = String(item.alt).slice(0, 160);
+    output.push(media);
+    seen.add(key);
+  }
+  const image = publicMediaUrl(fallbackImage);
+  if (image && !seen.has(image) && output.length < 8) output.unshift({ kind: 'image', url: image });
+  return output;
+};
 
 function classify(value) {
   const text = String(value || '').toLowerCase();
@@ -71,13 +100,15 @@ async function seed(db) {
   const categories = [['Actualidad', 'actualidad'], ['Seguridad', 'seguridad'], ['Servicios', 'servicios'], ['Política local', 'politica-local'], ['Educación', 'educacion'], ['Deportes', 'deportes'], ['Eventos', 'eventos'], ['Economía', 'economia'], ['Empleo', 'empleo'], ['Comunidad', 'comunidad'], ['Emergencias', 'emergencias'], ['Entretenimiento', 'entretenimiento']];
   for (const category of categories) await dbRun(db, 'INSERT OR IGNORE INTO categories (name, slug) VALUES (?, ?)', ...category);
   const sources = [
-    ['Turismo Sullana MPS', 'https://www.facebook.com/TurismoSullanaMPS/', 'TurismoSullanaMPS'],
-    ['Municipalidad Bellavista Oficial', 'https://www.facebook.com/MunicipalidadBellavistaOficial', 'MunicipalidadBellavistaOficial'],
-    ['Municipalidad Distrital de Marcavelica', 'https://www.facebook.com/munimarcavelica', 'munimarcavelica'],
-    ['Municipalidad Distrital de Querecotillo', 'https://www.facebook.com/MuniQuerecotillo', 'MuniQuerecotillo'],
-    ['Municipalidad Distrital de Ignacio Escudero', 'https://www.facebook.com/m.d.ignacio.escudero', 'm.d.ignacio.escudero'],
+    ['Turismo Sullana MPS', 'https://www.facebook.com/TurismoSullanaMPS/', 'TurismoSullanaMPS', 'OFFICIAL', 0],
+    ['Municipalidad Bellavista Oficial', 'https://www.facebook.com/MunicipalidadBellavistaOficial', 'MunicipalidadBellavistaOficial', 'OFFICIAL', 0],
+    ['Municipalidad Distrital de Marcavelica', 'https://www.facebook.com/munimarcavelica', 'munimarcavelica', 'OFFICIAL', 0],
+    ['Municipalidad Distrital de Querecotillo', 'https://www.facebook.com/MuniQuerecotillo', 'MuniQuerecotillo', 'OFFICIAL', 0],
+    ['Municipalidad Distrital de Ignacio Escudero', 'https://www.facebook.com/m.d.ignacio.escudero', 'm.d.ignacio.escudero', 'OFFICIAL', 0],
+    ['El Chilalo Noticias', 'https://www.facebook.com/ElChilaloNoticias/', 'ElChilaloNoticias', 'TRUSTED_MEDIA', 1],
+    ['Del Chira Noticias', 'https://www.facebook.com/delchiranoticias', 'delchiranoticias', 'TRUSTED_MEDIA', 1],
   ];
-  for (const source of sources) await dbRun(db, 'INSERT OR IGNORE INTO sources (name, facebook_url, facebook_identifier, trust_level, enabled, auto_draft, auto_publish) VALUES (?, ?, ?, ?, 0, 1, 0)', source[0], source[1], source[2], 'OFFICIAL');
+  for (const source of sources) await dbRun(db, 'INSERT OR IGNORE INTO sources (name, facebook_url, facebook_identifier, trust_level, enabled, auto_draft, auto_publish) VALUES (?, ?, ?, ?, ?, 1, 0)', ...source);
 }
 
 function adSlot(env, position) {
@@ -187,7 +218,7 @@ async function createDraft(db, raw) {
   let slug = title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 90) || 'noticia-local';
   if (await dbFirst(db, 'SELECT id FROM news_drafts WHERE slug=? UNION SELECT id FROM articles WHERE slug=?', slug, slug)) slug = `${slug}-${Date.now().toString(36)}`;
   const verification = check.sensitive || source.trust_level !== 'OFFICIAL' ? 'VERIFY' : 'UNVERIFIED';
-  const result = await dbRun(db, 'INSERT INTO news_drafts (raw_post_id,category_id,title,dek,summary,body,keywords,meta_title,meta_description,slug,source_name,source_url,original_post_url,original_published_at,image_type,image_url,verification_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', raw.id, category.id, title, 'Borrador pendiente de revisión editorial.', raw.text, raw.text, 'Sullana, Piura, actualidad local', title, raw.text.slice(0, 155), slug, source.name, source.facebook_url, raw.post_url, raw.published_at || null, raw.image_url ? 'SOURCE_IMAGE' : 'NO_IMAGE', raw.image_url || null, verification);
+  const result = await dbRun(db, 'INSERT INTO news_drafts (raw_post_id,category_id,title,dek,summary,body,keywords,meta_title,meta_description,slug,source_name,source_url,original_post_url,original_published_at,image_type,image_url,media_json,verification_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', raw.id, category.id, title, 'Borrador pendiente de revisión editorial.', raw.text, raw.text, 'Sullana, Piura, actualidad local', title, raw.text.slice(0, 155), slug, source.name, source.facebook_url, raw.post_url, raw.published_at || null, raw.image_url ? 'SOURCE_IMAGE' : 'NO_IMAGE', raw.image_url || null, raw.media_json || '[]', verification);
   await dbRun(db, 'UPDATE raw_posts SET processing_status=?,verification_status=? WHERE id=?', 'DRAFTED', verification, raw.id);
   return { id: result.meta?.last_row_id, verification_status: verification };
 }
@@ -199,7 +230,7 @@ async function persistIngest(env, payload) {
   const runId = crypto.randomUUID();
   const started = now();
   const run = await dbRun(db, 'INSERT INTO scrape_runs (run_id,started_at,sources_checked,status) VALUES (?,?,?,?)', runId, started, sources.length, 'RUNNING');
-  const insert = 'INSERT OR IGNORE INTO raw_posts (source_id,external_post_id,text,post_url,image_url,published_at,fetched_at,content_hash,processing_status,verification_status,likes,comments,shares,reactions_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)';
+  const insert = 'INSERT OR IGNORE INTO raw_posts (source_id,external_post_id,text,post_url,image_url,media_json,published_at,fetched_at,content_hash,processing_status,verification_status,likes,comments,shares,reactions_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)';
   const adapterErrors = Array.isArray(payload.errors) ? payload.errors : [];
   const failedSourceIds = new Set(adapterErrors.map((error) => Number(error.source_id)).filter(Number.isInteger));
   const failedSourceNames = new Set(adapterErrors.map((error) => String(error.source || '').trim()).filter(Boolean));
@@ -210,7 +241,9 @@ async function persistIngest(env, payload) {
     found += 1;
     const check = classify(post.text);
     const hash = await digest(`${post.text || ''}\n${post.post_url}`);
-    const result = await dbRun(db, insert, source.id, post.post_id || null, post.text || '', post.post_url, post.image || null, post.published_at || null, now(), hash, check.status, check.verification, post.likes ?? null, post.comments ?? null, post.shares ?? null, JSON.stringify(post.reactions || null));
+    const media = normalizeMedia(post.media, post.image);
+    const image = media.find((item) => item.kind === 'image')?.url || null;
+    const result = await dbRun(db, insert, source.id, post.post_id || null, post.text || '', post.post_url, image, JSON.stringify(media), post.published_at || null, now(), hash, check.status, check.verification, post.likes ?? null, post.comments ?? null, post.shares ?? null, JSON.stringify(post.reactions || null));
     if (!result.meta?.changes) { duplicates += 1; continue; }
     fresh += 1;
     if (source.auto_draft && check.status !== 'NOT_RELEVANT') {
@@ -228,7 +261,7 @@ async function persistIngest(env, payload) {
 
 async function adminPage(env, request) {
   const body = `<section class="shell admin"><div class="kicker">Operaciones</div><h1>Panel editorial</h1><p class="lede">Detecta, verifica, redacta y publica con trazabilidad.</p><div id="login" class="admin-card"><h2>Acceso editorial</h2><form id="login-form"><label>Contraseña<input name="password" type="password" required autocomplete="current-password"></label><button class="button dark">Entrar</button><p id="error"></p></form></div><div id="app" class="hidden"><div id="metrics" class="metrics"></div><div class="admin-card"><h2>Analytics</h2><div id="analytics"></div></div><div class="admin-card"><h2>Monetización</h2><div id="monetization"></div></div><div class="admin-card"><h2>Fuentes</h2><div id="sources"></div><button id="ingest" class="button">Revisar ahora</button></div><div class="admin-card"><h2>Posts detectados</h2><div id="raw"></div></div><div class="admin-card"><h2>Borradores</h2><div id="drafts"></div></div></div></section>`;
-  const script = String.raw`<script>(()=>{const q=s=>document.querySelector(s),esc=v=>String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;"),api=async(p,o={})=>{const r=await fetch(p,{headers:{"content-type":"application/json",...(o.headers||{})},...o}),d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.message||d.error||"REQUEST_FAILED");return d};async function load(){const[d,s,r,w]=await Promise.all([api("/api/admin/dashboard"),api("/api/admin/sources"),api("/api/admin/raw-posts"),api("/api/admin/drafts")]);q("#metrics").innerHTML=[["Visitas hoy",d.visits_today],["Artículos hoy",d.articles_today],["Posts",d.posts_detected],["Borradores",d.drafts]].map(x=>"<div class=\"metric\"><small>"+esc(x[0])+"</small><strong>"+esc(x[1])+"</strong></div>").join("");q("#sources").innerHTML=s.map(x=>"<div class=\"item\"><strong>"+esc(x.name)+"</strong> <span class=\"badge\">"+(x.enabled?"Activa":"Pausada")+"</span><p>"+esc(x.facebook_url)+"</p><button class=\"button\" data-source=\""+x.id+"\" data-enabled=\""+(x.enabled?0:1)+"\">"+(x.enabled?"Pausar":"Activar")+"</button></div>").join("")||"<p>No hay fuentes.</p>";q("#raw").innerHTML=r.map(x=>"<div class=\"item\"><strong>"+esc(x.source_name)+"</strong> <span class=\"badge\">"+esc(x.processing_status)+"</span><p>"+esc((x.text||"").slice(0,180))+"</p>"+(!["DRAFTED","PUBLISHED","REJECTED"].includes(x.processing_status)?"<button class=\"button\" data-draft=\""+x.id+"\">Crear borrador</button>":"")+"</div>").join("")||"<p>No hay posts detectados.</p>";q("#drafts").innerHTML=w.map(x=>"<div class=\"item\"><strong>"+esc(x.title)+"</strong> <span class=\"badge "+(x.verification_status==="VERIFY"?"warn":"")+"\">"+esc(x.editorial_status)+" · "+esc(x.verification_status)+"</span><p>"+esc(x.dek)+"<br>Fuente: "+esc(x.source_name)+"</p>"+(x.editorial_status==="DRAFT"?"<button class=\"button dark\" data-publish=\""+x.id+"\">"+(x.verification_status==="VERIFY"?"Confirmar y publicar":"Publicar")+"</button>":"")+"</div>").join("")||"<p>No hay borradores.</p>";document.querySelectorAll("[data-source]").forEach(b=>b.onclick=async()=>{await api("/api/admin/sources/"+b.dataset.source,{method:"PATCH",body:JSON.stringify({enabled:b.dataset.enabled==="1"})});load()});document.querySelectorAll("[data-draft]").forEach(b=>b.onclick=async()=>{await api("/api/admin/raw-posts/"+b.dataset.draft+"/draft",{method:"POST",body:"{}"});load()});document.querySelectorAll("[data-publish]").forEach(b=>b.onclick=async()=>{if(confirm("Confirma revisión editorial y publicación.")){await api("/api/admin/drafts/"+b.dataset.publish+"/publish",{method:"POST",body:JSON.stringify({verified:true})});load()}})}q("#login-form").onsubmit=async e=>{e.preventDefault();try{await api("/api/auth/login",{method:"POST",body:JSON.stringify({password:new FormData(e.target).get("password")})});q("#login").classList.add("hidden");q("#app").classList.remove("hidden");load()}catch(x){q("#error").textContent=x.message}};q("#ingest").onclick=async()=>{try{await api("/api/admin/ingest",{method:"POST"});load()}catch(x){alert(x.message)}};api("/api/admin/session").then(()=>{q("#login").classList.add("hidden");q("#app").classList.remove("hidden");load()}).catch(()=>{})})();</script>`;
+  const script = String.raw`<script>(()=>{const q=s=>document.querySelector(s),esc=v=>String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;"),mediaSummary=v=>{try{const m=JSON.parse(v||"[]"),i=m.filter(x=>x.kind==="image").length,vv=m.filter(x=>x.kind==="video").length;return m.length?"<p>Medios detectados: "+i+" foto(s) · "+vv+" video(s) · "+m.map((x,n)=>{const u=x.url||x.poster||"";return u?"<a href=\""+esc(u)+"\" target=\"_blank\" rel=\"nofollow noopener\">"+(x.kind==="video"?"Video ":"Foto ")+(n+1)+" ↗</a>":""}).join(" · ")+"</p>":""}catch{return""}},api=async(p,o={})=>{const r=await fetch(p,{headers:{"content-type":"application/json",...(o.headers||{})},...o}),d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.message||d.error||"REQUEST_FAILED");return d};async function load(){const[d,s,r,w]=await Promise.all([api("/api/admin/dashboard"),api("/api/admin/sources"),api("/api/admin/raw-posts"),api("/api/admin/drafts")]);q("#metrics").innerHTML=[["Visitas hoy",d.visits_today],["Artículos hoy",d.articles_today],["Posts",d.posts_detected],["Borradores",d.drafts]].map(x=>"<div class=\"metric\"><small>"+esc(x[0])+"</small><strong>"+esc(x[1])+"</strong></div>").join("");q("#sources").innerHTML=s.map(x=>"<div class=\"item\"><strong>"+esc(x.name)+"</strong> <span class=\"badge\">"+(x.enabled?"Activa":"Pausada")+"</span><p>"+esc(x.facebook_url)+"</p><button class=\"button\" data-source=\""+x.id+"\" data-enabled=\""+(x.enabled?0:1)+"\">"+(x.enabled?"Pausar":"Activar")+"</button></div>").join("")||"<p>No hay fuentes.</p>";q("#raw").innerHTML=r.map(x=>"<div class=\"item\"><strong>"+esc(x.source_name)+"</strong> <span class=\"badge\">"+esc(x.processing_status)+"</span><p>"+esc((x.text||"").slice(0,180))+"</p>"+mediaSummary(x.media_json)+(!["DRAFTED","PUBLISHED","REJECTED"].includes(x.processing_status)?"<button class=\"button\" data-draft=\""+x.id+"\">Crear borrador</button>":"")+"</div>").join("")||"<p>No hay posts detectados.</p>";q("#drafts").innerHTML=w.map(x=>"<div class=\"item\"><strong>"+esc(x.title)+"</strong> <span class=\"badge "+(x.verification_status==="VERIFY"?"warn":"")+"\">"+esc(x.editorial_status)+" · "+esc(x.verification_status)+"</span><p>"+esc(x.dek)+"<br>Fuente: "+esc(x.source_name)+"</p>"+(x.editorial_status==="DRAFT"?"<button class=\"button dark\" data-publish=\""+x.id+"\">"+(x.verification_status==="VERIFY"?"Confirmar y publicar":"Publicar")+"</button>":"")+"</div>").join("")||"<p>No hay borradores.</p>";document.querySelectorAll("[data-source]").forEach(b=>b.onclick=async()=>{await api("/api/admin/sources/"+b.dataset.source,{method:"PATCH",body:JSON.stringify({enabled:b.dataset.enabled==="1"})});load()});document.querySelectorAll("[data-draft]").forEach(b=>b.onclick=async()=>{await api("/api/admin/raw-posts/"+b.dataset.draft+"/draft",{method:"POST",body:"{}"});load()});document.querySelectorAll("[data-publish]").forEach(b=>b.onclick=async()=>{if(confirm("Confirma revisión editorial y publicación.")){await api("/api/admin/drafts/"+b.dataset.publish+"/publish",{method:"POST",body:JSON.stringify({verified:true})});load()}})}q("#login-form").onsubmit=async e=>{e.preventDefault();try{await api("/api/auth/login",{method:"POST",body:JSON.stringify({password:new FormData(e.target).get("password")})});q("#login").classList.add("hidden");q("#app").classList.remove("hidden");load()}catch(x){q("#error").textContent=x.message}};q("#ingest").onclick=async()=>{try{await api("/api/admin/ingest",{method:"POST"});load()}catch(x){alert(x.message)}};api("/api/admin/session").then(()=>{q("#login").classList.add("hidden");q("#app").classList.remove("hidden");load()}).catch(()=>{})})();</script>`;
   const deferredScript = script
     .replace('<script>(()=>{', '<script>document.addEventListener("DOMContentLoaded",()=>{(()=>{')
     .replace('})();</script>', '})();});</script>');
@@ -274,7 +307,7 @@ export default {
         const draft = url.pathname.match(/^\/api\/admin\/drafts\/(\d+)$/);
         if (draft && request.method === 'PUT') { const body=await bodyJson(request); await dbRun(env.DB,'UPDATE news_drafts SET title=?,dek=?,body=?,category_id=COALESCE((SELECT id FROM categories WHERE slug=?),category_id),meta_title=?,meta_description=?,updated_at=? WHERE id=?',String(body.title||''),String(body.dek||''),String(body.body||''),String(body.category_slug||'actualidad'),String(body.meta_title||body.title||''),String(body.meta_description||body.dek||''),now(),Number(draft[1])); return json(await dbFirst(env.DB,'SELECT * FROM news_drafts WHERE id=?',Number(draft[1]))); }
         const publish = url.pathname.match(/^\/api\/admin\/drafts\/(\d+)\/publish$/);
-        if (publish && request.method === 'POST') { const body=await bodyJson(request); const item=await dbFirst(env.DB,'SELECT * FROM news_drafts WHERE id=?',Number(publish[1])); if(!item)return json({error:'DRAFT_NOT_FOUND'},404); if(item.verification_status==='VERIFY'&&body.verified!==true)return json({error:'VERIFICATION_REQUIRED'},409); const canonical=`${originOf(request)}/noticias/${item.slug}`; const result=await dbRun(env.DB,'INSERT INTO articles (draft_id,category_id,title,dek,summary,body,keywords,meta_title,meta_description,slug,canonical_url,source_name,source_url,original_post_url,original_published_at,image_type,image_url) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',item.id,item.category_id,item.title,item.dek,item.summary,item.body,item.keywords,item.meta_title,item.meta_description,item.slug,canonical,item.source_name,item.source_url,item.original_post_url,item.original_published_at,item.image_type,item.image_url); await dbRun(env.DB,'UPDATE news_drafts SET editorial_status=\'PUBLISHED\',verification_status=\'VERIFIED\',updated_at=? WHERE id=?',now(),item.id); await dbRun(env.DB,'UPDATE raw_posts SET processing_status=\'PUBLISHED\',verification_status=\'VERIFIED\' WHERE id=?',item.raw_post_id); return json({article:await dbFirst(env.DB,'SELECT * FROM articles WHERE id=?',result.meta?.last_row_id)},201); }
+        if (publish && request.method === 'POST') { const body=await bodyJson(request); const item=await dbFirst(env.DB,'SELECT * FROM news_drafts WHERE id=?',Number(publish[1])); if(!item)return json({error:'DRAFT_NOT_FOUND'},404); if(item.verification_status==='VERIFY'&&body.verified!==true)return json({error:'VERIFICATION_REQUIRED'},409); const canonical=`${originOf(request)}/noticias/${item.slug}`; const result=await dbRun(env.DB,'INSERT INTO articles (draft_id,category_id,title,dek,summary,body,keywords,meta_title,meta_description,slug,canonical_url,source_name,source_url,original_post_url,original_published_at,image_type,image_url,media_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',item.id,item.category_id,item.title,item.dek,item.summary,item.body,item.keywords,item.meta_title,item.meta_description,item.slug,canonical,item.source_name,item.source_url,item.original_post_url,item.original_published_at,item.image_type,item.image_url,item.media_json || '[]'); await dbRun(env.DB,'UPDATE news_drafts SET editorial_status=\'PUBLISHED\',verification_status=\'VERIFIED\',updated_at=? WHERE id=?',now(),item.id); await dbRun(env.DB,'UPDATE raw_posts SET processing_status=\'PUBLISHED\',verification_status=\'VERIFIED\' WHERE id=?',item.raw_post_id); return json({article:await dbFirst(env.DB,'SELECT * FROM articles WHERE id=?',result.meta?.last_row_id)},201); }
         return json({error:'NOT_FOUND'},404);
       }
       if (url.pathname === '/sitemap.xml') { const articles=await articleRows(env,100); const base=originOf(request); return text(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${esc(base)}/</loc></url>${articles.map((item)=>`<url><loc>${esc(base)}/noticias/${esc(item.slug)}</loc><lastmod>${esc(item.modified_at)}</lastmod></url>`).join('')}</urlset>`,'application/xml; charset=utf-8',200,{'cache-control':'public,max-age=300'}); }

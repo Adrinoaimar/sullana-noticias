@@ -28,5 +28,17 @@
     "name": "Municipalidad Distrital de Ignacio Escudero",
     "facebook_url": "https://www.facebook.com/m.d.ignacio.escudero",
     "facebook_identifier": "m.d.ignacio.escudero"
+  },
+  {
+    "id": 6,
+    "name": "El Chilalo Noticias",
+    "facebook_url": "https://www.facebook.com/ElChilaloNoticias/",
+    "facebook_identifier": "ElChilaloNoticias"
+  },
+  {
+    "id": 7,
+    "name": "Del Chira Noticias",
+    "facebook_url": "https://www.facebook.com/delchiranoticias",
+    "facebook_identifier": "delchiranoticias"
   }
 ]

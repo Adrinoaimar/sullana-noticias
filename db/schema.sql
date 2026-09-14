@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS raw_posts (
   text TEXT NOT NULL DEFAULT '',
   post_url TEXT NOT NULL,
   image_url TEXT,
+  media_json TEXT NOT NULL DEFAULT '[]',
   published_at TEXT,
   fetched_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   content_hash TEXT NOT NULL,
@@ -59,6 +60,7 @@ CREATE TABLE IF NOT EXISTS news_drafts (
   original_published_at TEXT,
   image_type TEXT NOT NULL DEFAULT 'NO_IMAGE' CHECK (image_type IN ('SOURCE_IMAGE', 'OWNED_IMAGE', 'AUTHORIZED_IMAGE', 'GENERATED_ASSET', 'NO_IMAGE')),
   image_url TEXT,
+  media_json TEXT NOT NULL DEFAULT '[]',
   editorial_status TEXT NOT NULL DEFAULT 'DRAFT' CHECK (editorial_status IN ('DRAFT', 'PUBLISHED', 'REJECTED')),
   verification_status TEXT NOT NULL DEFAULT 'VERIFY' CHECK (verification_status IN ('UNVERIFIED', 'VERIFY', 'VERIFIED')),
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -84,6 +86,7 @@ CREATE TABLE IF NOT EXISTS articles (
   original_published_at TEXT,
   image_type TEXT NOT NULL DEFAULT 'NO_IMAGE',
   image_url TEXT,
+  media_json TEXT NOT NULL DEFAULT '[]',
   published_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   modified_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   view_count INTEGER NOT NULL DEFAULT 0
