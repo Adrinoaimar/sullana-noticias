@@ -46,7 +46,7 @@ pip install -r services/facebook-ingestor/requirements.txt
 
 El adaptador usa Playwright sobre páginas públicas, sin login automatizado, CAPTCHA, grupos privados ni evasión de controles. El servidor requiere que una fuente esté activa antes de revisarla. Cada fuente conserva `last_checked_at`, `last_success_at` y los errores de la ejecución. Si una página falla después de los reintentos, el Worker la pausa para revisión y continúa con las demás.
 
-La prueba histórica de `kevinzg/facebook-scraper` queda documentada, pero la captura principal ahora es `PlaywrightFacebookSourceAdapter`, inspirada en [playwright-Facebook-scraper](https://github.com/Lencho123/playwright-Facebook-scraper). La configuración revisa ocho páginas públicas de Sullana y captura hasta ocho posts visibles por fuente y ejecución. Conserva texto, fecha/etiqueta, fuente, URL canónica y metadatos de hasta seis fotos/videos públicos encontrados en el DOM; esos enlaces pueden caducar y no se descargan ni republican automáticamente.
+La prueba histórica de `kevinzg/facebook-scraper` queda documentada, pero la captura principal ahora es `PlaywrightFacebookSourceAdapter`, inspirada en [playwright-Facebook-scraper](https://github.com/Lencho123/playwright-Facebook-scraper). La configuración contiene 12 páginas públicas de Sullana y Piura; el endpoint de D1 entrega solo fuentes habilitadas o recuperables. Captura hasta ocho posts visibles por fuente y ejecución. Conserva texto, fecha/etiqueta, fuente, URL canónica y metadatos de hasta seis fotos/videos públicos encontrados en el DOM; esos enlaces pueden caducar y no se descargan ni republican automáticamente.
 
 ### Ruta Meta Graph API (futuro)
 
