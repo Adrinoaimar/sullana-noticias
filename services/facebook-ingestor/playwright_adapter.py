@@ -84,6 +84,11 @@ _STOP_LINES = {
     "escribe un comentario",
     "most relevant",
 }
+_PLAYBACK_ERROR = re.compile(
+    r"^(?:sorry, we're having trouble playing this video|"
+    r"lo sentimos, tenemos problemas para reproducir este video)\.?$",
+    re.I,
+)
 
 
 def _clean_line(value: str) -> str:
@@ -281,6 +286,8 @@ class PlaywrightFacebookSourceAdapter:
         for raw_line in lines[start:]:
             line = _clean_line(raw_line)
             lowered = line.lower()
+            if _PLAYBACK_ERROR.fullmatch(line):
+                continue
             engagement = re.search(r"\b(?:like|me gusta)\s+(?:comment|comentar)\s+(?:share|compartir)\b", line, flags=re.I)
             if engagement:
                 line = line[:engagement.start()].strip()
@@ -439,6 +446,8 @@ class PlaywrightFacebookSourceAdapter:
         for raw_line in lines[start:]:
             line = _clean_line(raw_line)
             lowered = line.lower()
+            if _PLAYBACK_ERROR.fullmatch(line):
+                continue
             if lowered.startswith(("like comment share", "me gusta comentar compartir")):
                 break
             if re.search(r"(?:all\s+reactions|todas\s+las\s+reacciones|reacciones)", lowered):
