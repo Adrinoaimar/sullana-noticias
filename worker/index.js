@@ -47,11 +47,21 @@ const normalizeMedia = (value, fallbackImage = null) => {
   return output;
 };
 
+function sectionFor(value) {
+  const text = String(value || '').toLowerCase();
+  if (/\bpresident(?:e|a)\b|presidencia|palacio de gobierno|ejecutivo nacional|congreso|ministro/.test(text)) return 'presidencia';
+  if (/asalto|asaltaron|asaltante|atraco|robo|robó|robado|hurto|delincu/.test(text)) return 'asaltos';
+  if (/accidente|incendio|rescate|desaparec|emergencia|evacuaci/.test(text)) return 'emergencias';
+  if (/corte de agua|agua potable|luz eléctrica|alumbrado|pista|vía pública|servicio/.test(text)) return 'servicios';
+  if (/asesin|homicid|violencia|detenid|capturad|denuncia|fiscalía|policía/.test(text)) return 'seguridad';
+  return 'actualidad';
+}
+
 function classify(value) {
   const text = String(value || '').toLowerCase();
   const local = ['sullana', 'bellavista', 'marcavelica', 'querecotillo', 'lancones', 'miguel checa', 'salitral', 'piura', 'mallares'].some((term) => text.includes(term));
   const sensitive = ['accidente', 'delito', 'fallec', 'denuncia', 'emergencia', 'acusaci', 'asesin', 'muerte', 'politica', 'política'].some((term) => text.includes(term));
-  return { status: local ? (sensitive ? 'VERIFY' : 'RELEVANT') : 'NOT_RELEVANT', verification: sensitive ? 'VERIFY' : 'UNVERIFIED' };
+  return { status: local ? (sensitive ? 'VERIFY' : 'RELEVANT') : 'NOT_RELEVANT', verification: sensitive ? 'VERIFY' : 'UNVERIFIED', category_slug: sectionFor(value) };
 }
 
 function titleFrom(value) {
@@ -97,7 +107,7 @@ async function authorizedIngest(request, env) {
 }
 
 async function seed(db) {
-  const categories = [['Actualidad', 'actualidad'], ['Seguridad', 'seguridad'], ['Servicios', 'servicios'], ['Política local', 'politica-local'], ['Educación', 'educacion'], ['Deportes', 'deportes'], ['Eventos', 'eventos'], ['Economía', 'economia'], ['Empleo', 'empleo'], ['Comunidad', 'comunidad'], ['Emergencias', 'emergencias'], ['Entretenimiento', 'entretenimiento']];
+  const categories = [['Actualidad', 'actualidad'], ['Seguridad', 'seguridad'], ['Asaltos', 'asaltos'], ['Servicios', 'servicios'], ['Política local', 'politica-local'], ['Presidencia', 'presidencia'], ['Educación', 'educacion'], ['Deportes', 'deportes'], ['Eventos', 'eventos'], ['Economía', 'economia'], ['Empleo', 'empleo'], ['Comunidad', 'comunidad'], ['Emergencias', 'emergencias'], ['Entretenimiento', 'entretenimiento']];
   for (const category of categories) await dbRun(db, 'INSERT OR IGNORE INTO categories (name, slug) VALUES (?, ?)', ...category);
   const sources = [
     ['Turismo Sullana MPS', 'https://www.facebook.com/TurismoSullanaMPS/', 'TurismoSullanaMPS', 'OFFICIAL', 0],
@@ -107,6 +117,7 @@ async function seed(db) {
     ['Municipalidad Distrital de Ignacio Escudero', 'https://www.facebook.com/m.d.ignacio.escudero', 'm.d.ignacio.escudero', 'OFFICIAL', 0],
     ['El Chilalo Noticias', 'https://www.facebook.com/ElChilaloNoticias/', 'ElChilaloNoticias', 'TRUSTED_MEDIA', 1],
     ['Del Chira Noticias', 'https://www.facebook.com/delchiranoticias', 'delchiranoticias', 'TRUSTED_MEDIA', 1],
+    ['El Churre Noticias - Sullana', 'https://www.facebook.com/elchurrenoticiasoficialsullana', 'elchurrenoticiasoficialsullana', 'TRUSTED_MEDIA', 1],
   ];
   for (const source of sources) await dbRun(db, 'INSERT OR IGNORE INTO sources (name, facebook_url, facebook_identifier, trust_level, enabled, auto_draft, auto_publish) VALUES (?, ?, ?, ?, ?, 1, 0)', ...source);
 }
@@ -142,7 +153,7 @@ function card(article) { return `<article class="card"><div class="eyebrow">${es
 
 async function home(env, request) {
   const articles = await articleRows(env);
-  const body = `<section class="hero shell"><div class="kicker">Noticias locales · Sullana, Piura</div><h1>Lo que pasa cerca,<br><em>bien contado.</em></h1><p class="lede">Un medio local independiente para seguir servicios, comunidad y actualidad de la provincia.</p><p class="meta">Fuentes públicas + revisión editorial</p></section>${adSlot(env, 'home-top')}<section class="shell section"><div class="heading"><div><div class="kicker">01 / Ahora</div><h2>Últimas noticias</h2></div><a href="/categoria/actualidad">Ver todo ↗</a></div>${articles.length ? `<div class="grid">${articles.map(card).join('')}</div>` : '<div class="empty"><strong>El primer despacho está por llegar.</strong><p>Las fuentes públicas se procesan y cada hallazgo pasa por revisión editorial antes de publicarse.</p></div>'}</section><section class="tint"><div class="shell section"><div class="heading"><div><div class="kicker">02 / Criterio</div><h2>Cómo trabajamos</h2></div></div><div class="principles"><div><div class="kicker">01</div><h3>Fuente identificable</h3><p>Cada nota conserva enlace y fecha de la publicación original.</p></div><div><div class="kicker">02</div><h3>Redacción propia</h3><p>No copiamos textos ni inventamos datos.</p></div><div><div class="kicker">03</div><h3>Revisión humana</h3><p>Accidentes, denuncias y emergencias no se autopublican.</p></div></div></div></section>`;
+  const body = `<section class="hero shell"><div class="kicker">Noticias locales · Sullana, Piura</div><h1>Lo que pasa cerca,<br><em>bien contado.</em></h1><p class="lede">Un medio local independiente para seguir servicios, comunidad y actualidad de la provincia.</p><p class="meta">Fuentes públicas + revisión editorial</p></section>${adSlot(env, 'home-top')}<section class="shell section"><div class="heading"><div><div class="kicker">01 / Ahora</div><h2>Últimas noticias</h2></div><a href="/categoria/actualidad">Ver todo ↗</a></div><p class="meta"><a href="/categoria/presidencia">Presidencia</a> · <a href="/categoria/asaltos">Asaltos</a> · <a href="/categoria/seguridad">Seguridad</a> · <a href="/categoria/emergencias">Emergencias</a> · <a href="/categoria/servicios">Servicios</a></p>${articles.length ? `<div class="grid">${articles.map(card).join('')}</div>` : '<div class="empty"><strong>El primer despacho está por llegar.</strong><p>Las fuentes públicas se procesan y cada hallazgo pasa por revisión editorial antes de publicarse.</p></div>'}</section><section class="tint"><div class="shell section"><div class="heading"><div><div class="kicker">02 / Criterio</div><h2>Cómo trabajamos</h2></div></div><div class="principles"><div><div class="kicker">01</div><h3>Fuente identificable</h3><p>Cada nota conserva enlace y fecha de la publicación original.</p></div><div><div class="kicker">02</div><h3>Redacción propia</h3><p>No copiamos textos ni inventamos datos.</p></div><div><div class="kicker">03</div><h3>Revisión humana</h3><p>Accidentes, denuncias y emergencias no se autopublican.</p></div></div></div></section>`;
   return html(layout(env, request, 'Sullana Noticias · Actualidad local', 'Noticias locales de Sullana, Piura: actualidad, servicios, comunidad y agenda.', body));
 }
 
@@ -211,9 +222,9 @@ async function dashboard(env) {
 
 async function createDraft(db, raw) {
   const source = await dbFirst(db, 'SELECT * FROM sources WHERE id=?', raw.source_id);
-  const category = await dbFirst(db, "SELECT * FROM categories WHERE slug='actualidad'");
-  if (!source || !category) throw new Error('SOURCE_OR_CATEGORY_NOT_FOUND');
   const check = classify(raw.text);
+  const category = await dbFirst(db, 'SELECT * FROM categories WHERE slug=?', check.category_slug) || await dbFirst(db, "SELECT * FROM categories WHERE slug='actualidad'");
+  if (!source || !category) throw new Error('SOURCE_OR_CATEGORY_NOT_FOUND');
   const title = titleFrom(raw.text);
   let slug = title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 90) || 'noticia-local';
   if (await dbFirst(db, 'SELECT id FROM news_drafts WHERE slug=? UNION SELECT id FROM articles WHERE slug=?', slug, slug)) slug = `${slug}-${Date.now().toString(36)}`;

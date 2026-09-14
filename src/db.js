@@ -25,6 +25,8 @@ export function insertBaseCategories(db) {
     ['Empleo', 'empleo'],
     ['Comunidad', 'comunidad'],
     ['Emergencias', 'emergencias'],
+    ['Presidencia', 'presidencia'],
+    ['Asaltos', 'asaltos'],
     ['Entretenimiento', 'entretenimiento'],
   ];
   const statement = db.prepare('INSERT OR IGNORE INTO categories (name, slug) VALUES (?, ?)');

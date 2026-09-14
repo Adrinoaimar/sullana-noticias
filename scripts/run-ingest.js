@@ -5,11 +5,20 @@ import { contentHash, getCategory, openDatabase, uniqueSlug } from '../src/db.js
 const now = () => new Date().toISOString();
 const terms = ['sullana', 'bellavista', 'marcavelica', 'querecotillo', 'lancones', 'miguel checa', 'salitral', 'piura', 'mallares'];
 const sensitive = ['accidente', 'delito', 'fallec', 'denuncia', 'emergencia', 'acusaci', 'asesin', 'muerte', 'política', 'politica'];
+const sectionFor = (text) => {
+  const normalized = String(text || '').toLowerCase();
+  if (/\bpresident(?:e|a)\b|presidencia|palacio de gobierno|ejecutivo nacional|congreso|ministro/.test(normalized)) return 'presidencia';
+  if (/asalto|asaltaron|asaltante|atraco|robo|robó|robado|hurto|delincu/.test(normalized)) return 'asaltos';
+  if (/accidente|incendio|rescate|desaparec|emergencia|evacuaci/.test(normalized)) return 'emergencias';
+  if (/corte de agua|agua potable|luz eléctrica|alumbrado|pista|vía pública|servicio/.test(normalized)) return 'servicios';
+  if (/asesin|homicid|violencia|detenid|capturad|denuncia|fiscalía|policía/.test(normalized)) return 'seguridad';
+  return 'actualidad';
+};
 const classify = (text) => {
   const normalized = String(text || '').toLowerCase();
   const local = terms.some((term) => normalized.includes(term));
   const verify = sensitive.some((term) => normalized.includes(term));
-  return { status: local ? (verify ? 'VERIFY' : 'RELEVANT') : 'NOT_RELEVANT', verification: verify ? 'VERIFY' : 'UNVERIFIED' };
+  return { status: local ? (verify ? 'VERIFY' : 'RELEVANT') : 'NOT_RELEVANT', verification: verify ? 'VERIFY' : 'UNVERIFIED', category_slug: sectionFor(text) };
 };
 const titleFrom = (text) => (String(text || '').replace(/\s+/g, ' ').trim().split(/[.!?]\s/)[0] || 'Nueva publicación local').slice(0, 100);
 const publicMediaUrl = (value) => {
@@ -57,7 +66,6 @@ if (!sources.length) {
   let newPosts = 0;
   let duplicates = 0;
   const insert = db.prepare('INSERT OR IGNORE INTO raw_posts (source_id, external_post_id, text, post_url, image_url, media_json, published_at, fetched_at, content_hash, processing_status, verification_status, likes, comments, shares, reactions_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-  const category = getCategory(db, 'actualidad');
   for (const post of posts) {
     const source = sources.find((item) => item.id === post.source_id);
     if (!source || !post.post_url) continue;
@@ -72,6 +80,7 @@ if (!sources.length) {
       const raw = db.prepare('SELECT * FROM raw_posts WHERE content_hash = ?').get(hash);
       const title = titleFrom(raw.text);
       const sourceVerification = check.verification === 'VERIFY' || source.trust_level !== 'OFFICIAL' ? 'VERIFY' : 'UNVERIFIED';
+      const category = getCategory(db, check.category_slug);
       db.prepare('INSERT INTO news_drafts (raw_post_id, category_id, title, dek, summary, body, keywords, meta_title, meta_description, slug, source_name, source_url, original_post_url, original_published_at, image_type, image_url, media_json, verification_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(raw.id, category.id, title, 'Borrador pendiente de revisión editorial.', raw.text, raw.text, 'Sullana, Piura, actualidad local', title, raw.text.slice(0, 155), uniqueSlug(db, title), source.name, source.facebook_url, raw.post_url, raw.published_at, raw.image_url ? 'SOURCE_IMAGE' : 'NO_IMAGE', raw.image_url || null, raw.media_json || '[]', sourceVerification);
       db.prepare('UPDATE raw_posts SET processing_status = ?, verification_status = ? WHERE id = ?').run('DRAFTED', sourceVerification, raw.id);
     }

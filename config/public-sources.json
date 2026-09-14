@@ -40,5 +40,11 @@
     "name": "Del Chira Noticias",
     "facebook_url": "https://www.facebook.com/delchiranoticias",
     "facebook_identifier": "delchiranoticias"
+  },
+  {
+    "id": 8,
+    "name": "El Churre Noticias - Sullana",
+    "facebook_url": "https://www.facebook.com/elchurrenoticiasoficialsullana",
+    "facebook_identifier": "elchurrenoticiasoficialsullana"
   }
 ]
