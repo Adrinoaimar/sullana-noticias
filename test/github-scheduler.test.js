@@ -23,7 +23,7 @@ test('scheduler retries transient GitHub errors and deduplicates a tick', async 
       put: async (key, value) => values.set(key, value),
     },
   };
-  const controller = { cron: '17,47 * * * *', scheduledTime: 1757924220000, noRetry: () => { noRetry += 1; } };
+  const controller = { cron: '47 * * * *', scheduledTime: 1757924220000, noRetry: () => { noRetry += 1; } };
   try {
     await worker.scheduled(controller, env, {});
     await worker.scheduled(controller, env, {});

@@ -1,8 +1,8 @@
 name: Sullana Noticias · scheduler
 
 on:
-  # Respaldo manual del workflow reutilizable; el cron vive en
-  # scheduled-ingest.yml para aislar el registro periódico.
+  # Wrapper manual de compatibilidad; los turnos automáticos viven en
+  # scheduled-ingest.yml y en el Worker Cloudflare escalonado.
   workflow_dispatch:
 
 permissions:

@@ -1,7 +1,9 @@
 name: Sullana Noticias · scheduled ingest
 
 on:
-  # External Cloudflare scheduler dispatches this workflow; manual runs remain available.
+  # GitHub runs the first half-hour slot; Cloudflare owns the staggered second slot.
+  schedule:
+    - cron: "17 * * * *"
   workflow_dispatch:
 
 permissions:
