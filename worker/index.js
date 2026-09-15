@@ -377,6 +377,28 @@ async function refreshUneditedEditorial(db) {
   return refreshed;
 }
 
+async function refreshDefaultClassifications(db) {
+  const rows = await dbRows(db, `SELECT d.id AS draft_id, d.category_id AS current_category_id,
+      r.text, s.name AS source_name, s.trust_level
+    FROM news_drafts d
+    JOIN raw_posts r ON r.id=d.raw_post_id
+    JOIN sources s ON s.id=r.source_id
+    JOIN categories c ON c.id=d.category_id
+    WHERE c.slug='actualidad'
+    ORDER BY d.id ASC LIMIT 500`);
+  let refreshed = 0;
+  for (const item of rows) {
+    const check = classify(item.text, { name: item.source_name, trust_level: item.trust_level });
+    if (check.category_slug === 'actualidad') continue;
+    const category = await dbFirst(db, 'SELECT * FROM categories WHERE slug=?', check.category_slug);
+    if (!category || Number(category.id) === Number(item.current_category_id)) continue;
+    await dbRun(db, 'UPDATE news_drafts SET category_id=?,updated_at=? WHERE id=? AND category_id=?', category.id, now(), item.draft_id, item.current_category_id);
+    await dbRun(db, 'UPDATE articles SET category_id=?,modified_at=? WHERE draft_id=? AND category_id=?', category.id, now(), item.draft_id, item.current_category_id);
+    refreshed += 1;
+  }
+  return refreshed;
+}
+
 const SAFE_BULK_CATEGORIES = new Set(['actualidad', 'servicios', 'educacion', 'deportes', 'eventos', 'economia', 'empleo', 'comunidad', 'entretenimiento']);
 
 function isSafePublication(item) {
@@ -467,6 +489,12 @@ async function persistIngest(env, payload, requestOrigin) {
     if (refreshed) console.log(`editorial_backfill refreshed=${refreshed}`);
   } catch (error) {
     console.error('editorial_backfill', error.message);
+  }
+  try {
+    const recategorized = await refreshDefaultClassifications(db);
+    if (recategorized) console.log(`classification_backfill refreshed=${recategorized}`);
+  } catch (error) {
+    console.error('classification_backfill', error.message);
   }
   const status = errors.length && !found ? 'ERROR' : errors.length ? 'PARTIAL' : 'SUCCESS';
   await dbRun(db, 'UPDATE scrape_runs SET finished_at=?,posts_found=?,new_posts=?,duplicates=?,errors=?,status=?,error_message=? WHERE id=?', now(), found, fresh, duplicates, errors.length, status, errors.join(' | ') || null, run.meta?.last_row_id);
