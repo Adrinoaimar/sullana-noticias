@@ -11,9 +11,6 @@ on:
         required: false
         type: boolean
         default: true
-  schedule:
-    # Entry point used by successful historical scheduled runs.
-    - cron: "*/30 * * * *"
   workflow_dispatch:
     inputs:
       scope:
