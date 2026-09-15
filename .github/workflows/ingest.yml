@@ -3,7 +3,7 @@ name: Sullana Noticias · ingesta pública
 on:
   schedule:
     # Direct trigger keeps Playwright scheduling independent from reusable callers.
-    - cron: "17,47 * * * *"
+    - cron: "19,49 * * * *"
   workflow_call:
     inputs:
       scope:
