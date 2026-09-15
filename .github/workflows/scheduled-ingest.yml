@@ -1,9 +1,8 @@
 name: Sullana Noticias · scheduled ingest
 
 on:
-  # GitHub Actions owns the conservative public-ingestion cadence.
-  schedule:
-    - cron: "7,37 * * * *"
+  # Cloudflare owns the clock and dispatches this workflow. GitHub Actions
+  # remains the Linux + Chromium/Playwright runner.
   workflow_dispatch:
 
 permissions:
