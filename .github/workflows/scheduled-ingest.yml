@@ -1,7 +1,9 @@
 name: Sullana Noticias · scheduled ingest
 
 on:
-  # Manual compatibility entrypoint; automatic cron lives in ingest.yml.
+  schedule:
+    # Isolated scheduler; the reusable ingest workflow owns the scraper job.
+    - cron: "17,47 * * * *"
   workflow_dispatch:
 
 permissions:
