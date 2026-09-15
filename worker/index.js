@@ -362,18 +362,32 @@ async function refreshImprovedRawPost(db, raw, source, post, hash, media, image)
 
 async function refreshUneditedEditorial(db) {
   const rows = await dbRows(db, `SELECT d.id, d.raw_post_id, r.text, s.name AS source_name
+      , d.summary AS draft_summary, d.body AS draft_body, a.body AS article_body
     FROM news_drafts d
     JOIN raw_posts r ON r.id=d.raw_post_id
     JOIN sources s ON s.id=r.source_id
-    WHERE d.summary=r.text AND d.body=r.text
+    LEFT JOIN articles a ON a.draft_id=d.id
+    WHERE (d.summary=r.text AND d.body=r.text)
+       OR d.body LIKE '%El mismo reporte agrega que%'
+       OR a.body LIKE '%El mismo reporte agrega que%'
     ORDER BY d.id ASC LIMIT 200`);
   let refreshed = 0;
   for (const item of rows) {
+    const untouched = String(item.draft_body || '') === String(item.text || '') && String(item.draft_summary || '') === String(item.text || '');
+    const legacyDraft = String(item.draft_body || '').includes('El mismo reporte agrega que');
+    const legacyArticle = String(item.article_body || '').includes('El mismo reporte agrega que');
+    if (!untouched && !legacyDraft && !legacyArticle) continue;
     const editorial = buildEditorialCopy(item.text, item.source_name);
     if (!editorial.body) continue;
-    await dbRun(db, 'UPDATE news_drafts SET dek=?,summary=?,body=?,meta_description=?,updated_at=? WHERE id=?', editorial.summary, editorial.summary, editorial.body, editorial.metaDescription, now(), item.id);
-    await dbRun(db, `UPDATE articles SET dek=?,summary=?,body=?,meta_description=?,modified_at=?
-      WHERE draft_id=? AND summary=? AND body=?`, editorial.summary, editorial.summary, editorial.body, editorial.metaDescription, now(), item.id, item.text, item.text);
+    if (untouched || legacyDraft) {
+      await dbRun(db, 'UPDATE news_drafts SET dek=?,summary=?,body=?,meta_description=?,updated_at=? WHERE id=?', editorial.summary, editorial.summary, editorial.body, editorial.metaDescription, now(), item.id);
+    }
+    if (untouched || legacyArticle) {
+      await dbRun(db, `UPDATE articles SET dek=?,summary=?,body=?,meta_description=?,modified_at=?
+        WHERE draft_id=?${untouched ? ' AND summary=? AND body=?' : ''}`, ...(untouched
+        ? [editorial.summary, editorial.summary, editorial.body, editorial.metaDescription, now(), item.id, item.text, item.text]
+        : [editorial.summary, editorial.summary, editorial.body, editorial.metaDescription, now(), item.id]));
+    }
     refreshed += 1;
   }
   return refreshed;
