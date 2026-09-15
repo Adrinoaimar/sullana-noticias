@@ -1,9 +1,9 @@
 name: Sullana Noticias · scheduled ingest
 
 on:
-  # GitHub runs the first half-hour slot; Cloudflare owns the staggered second slot.
+  # GitHub Actions owns the conservative public-ingestion cadence.
   schedule:
-    - cron: "17 * * * *"
+    - cron: "*/30 * * * *"
   workflow_dispatch:
 
 permissions:
