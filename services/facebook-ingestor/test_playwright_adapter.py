@@ -11,6 +11,51 @@ SPEC.loader.exec_module(MODULE)
 
 
 class PlaywrightTextExtractionTests(unittest.TestCase):
+    def test_caption_expansion_is_scoped_to_feed_articles(self):
+        clicked = []
+
+        class Button:
+            def count(self):
+                return 1
+
+            def nth(self, _index):
+                return self
+
+            def is_visible(self):
+                return True
+
+            def scroll_into_view_if_needed(self, **_kwargs):
+                return None
+
+            def click(self, **_kwargs):
+                clicked.append(True)
+
+        class Article:
+            def get_by_role(self, *_args, **_kwargs):
+                return Button()
+
+            def get_by_text(self, *_args, **_kwargs):
+                return Button()
+
+        class Articles:
+            def count(self):
+                return 1
+
+            def nth(self, _index):
+                return Article()
+
+        class Page:
+            def locator(self, selector):
+                self.selector = selector
+                return Articles()
+
+            def wait_for_timeout(self, _milliseconds):
+                return None
+
+        adapter = MODULE.PlaywrightFacebookSourceAdapter.__new__(MODULE.PlaywrightFacebookSourceAdapter)
+        self.assertEqual(adapter._expand_page_captions(Page()), 1)
+        self.assertEqual(clicked, [True])
+
     def test_feed_text_drops_inline_player_error(self):
         lines = [
             "14m",
