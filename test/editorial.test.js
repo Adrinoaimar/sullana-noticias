@@ -8,7 +8,8 @@ test('editorial copy keeps all visible facts while changing the presentation', (
   assert.equal(cleanSourceText(raw).endsWith('Share 12'), false);
   assert.match(copy.summary, /El Chilalo Noticias/);
   assert.match(copy.body, /avances en Sullana/);
-  assert.match(copy.body, /El mismo reporte agrega/);
+  assert.match(copy.body, /contiene:/);
+  assert.doesNotMatch(copy.body, /El mismo reporte agrega/);
   assert.match(copy.body, /comunicó/);
   assert.match(copy.body, /El alcance de esta nota/);
   assert.match(copy.body, /fuente original/);
