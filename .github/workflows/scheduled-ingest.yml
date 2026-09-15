@@ -2,8 +2,8 @@ name: Sullana Noticias · scheduled ingest
 
 on:
   schedule:
-    # The caller owns the periodic trigger; ingest.yml remains reusable.
-    - cron: "*/30 * * * *"
+    # Keep the caller trigger off the busiest minute marks; ingest.yml remains reusable.
+    - cron: "17,47 * * * *"
   workflow_dispatch:
 
 permissions:
