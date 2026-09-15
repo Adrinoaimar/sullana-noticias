@@ -1,9 +1,7 @@
 name: Sullana Noticias · scheduled ingest
 
 on:
-  schedule:
-    # Keep the caller trigger off the busiest minute marks; ingest.yml remains reusable.
-    - cron: "17,47 * * * *"
+  # Manual compatibility entrypoint; automatic cron lives in ingest.yml.
   workflow_dispatch:
 
 permissions:
