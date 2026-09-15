@@ -69,6 +69,16 @@ class PlaywrightTextExtractionTests(unittest.TestCase):
         self.assertTrue(MODULE._is_relative_date_label("7m"))
         self.assertFalse(MODULE._is_relative_date_label("June 24, 2022"))
 
+    def test_short_repeated_caption_is_deduplicated_when_date_is_visible(self):
+        first = {"text": "CAFÉ DE ACHICORIA El café de a", "published_at": "2m", "post_url": "https://www.facebook.com/a/posts/1"}
+        second = {"text": "CAFÉ DE ACHICORIA El café de a", "published_at": "3m", "post_url": "https://www.facebook.com/a/posts/2"}
+        self.assertTrue(MODULE._same_visible_post(first, second))
+
+    def test_very_short_caption_is_not_deduplicated_by_text_only(self):
+        first = {"text": "Aviso local", "published_at": "2m"}
+        second = {"text": "Aviso local", "published_at": "3m"}
+        self.assertFalse(MODULE._same_visible_post(first, second))
+
     def test_video_caption_must_match_descriptive_public_url(self):
         unrelated = "[AVISO] Se vienen los talleres productivos para las mujeres."
         whale_url = "https://www.facebook.com/ElChilaloNoticias/videos/pescador-se-lanza-al-mar-para-salvar-a-una-ballena/1393457035560823"
