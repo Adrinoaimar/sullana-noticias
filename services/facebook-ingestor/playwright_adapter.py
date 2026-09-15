@@ -57,8 +57,10 @@ _EN_MONTHS = {
     "december": 12,
 }
 _RELATIVE_DATE = re.compile(
-    r"^(?:just now|ahora|today|yesterday|hoy|ayer|\d+\s*"
-    r"(?:s|sec|min|m|h|hr|hrs|d|day|days|w|week|weeks|mo|month|months|m|día|días|semana|semanas))"
+    r"^(?:(?:just now|ahora|today|yesterday|hoy|ayer|\d+\s*"
+    r"(?:s|sec|min|m|h|hr|hrs|d|day|days|w|week|weeks|mo|month|months|día|días|semana|semanas))"
+    r"(?:\s+(?:ago|atrás))?|hace\s+\d+\s*"
+    r"(?:s|seg|sec|min|m|h|hr|hrs|d|día|días|semana|semanas))"
     r"(?:\s+(?:at|a las)\s+\d{1,2}:\d{2}\s*(?:am|pm)?)?$",
     re.I,
 )
@@ -322,6 +324,8 @@ class PlaywrightFacebookSourceAdapter:
                 break
             if lowered in _STOP_LINES or re.search(r"(?:all\s+reactions|todas\s+las\s+reacciones|reacciones)", lowered):
                 break
+            if content and line == page_name:
+                break
             if not line or line in {"·", "…"} or re.fullmatch(r"\+\d+", line):
                 continue
             if line == page_name:
@@ -459,7 +463,7 @@ class PlaywrightFacebookSourceAdapter:
         return candidates
 
     @staticmethod
-    def _video_text(lines: list[str]) -> str:
+    def _video_text(lines: list[str], page_name: str = "") -> str:
         """Extract the visible caption from a public video detail page."""
         start = -1
         for index, line in enumerate(lines):
@@ -476,6 +480,8 @@ class PlaywrightFacebookSourceAdapter:
             if original_line and not line:
                 break
             if lowered in _STOP_LINES or lowered.startswith(("like comment share", "me gusta comentar compartir")):
+                break
+            if content and page_name and line == page_name:
                 break
             if re.fullmatch(r"(?:related|recommended)\s+(?:reels|videos)", lowered):
                 break
@@ -532,7 +538,7 @@ class PlaywrightFacebookSourceAdapter:
             if not permalink or not _post_id(permalink):
                 logger.info("source=%s video_skip=no_permalink url=%s final_url=%s", source_name or "unknown", video_url, page.url)
                 return None
-            text = self._video_text(lines)
+            text = self._video_text(lines, source_name)
             if not text or not date_label:
                 logger.info(
                     "source=%s video_skip=missing_fields date=%s text_len=%d lines=%d",
