@@ -10,6 +10,8 @@ test('editorial copy keeps all visible facts while changing the presentation', (
   assert.match(copy.body, /avances en Sullana/);
   assert.match(copy.body, /El mismo reporte agrega/);
   assert.match(copy.body, /comunicó/);
+  assert.match(copy.body, /El alcance de esta nota/);
+  assert.match(copy.body, /fuente original/);
   assert.notEqual(copy.body, cleanSourceText(raw));
   assert.ok(copy.metaDescription.length <= 155);
 });

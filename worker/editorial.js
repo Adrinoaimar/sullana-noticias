@@ -50,15 +50,18 @@ export function buildEditorialCopy(rawText, sourceName = '') {
   if (!parts.length) return { summary: '', body: '', metaDescription: '' };
   const source = String(sourceName || 'la fuente original').trim();
   const summary = `De acuerdo con ${source}, ${lowerFirst(parts[0])}.`;
-  const body = parts.map((part, index) => {
+  const sourceParagraphs = parts.map((part, index) => {
     const lead = index === 0
       ? `La publicación pública de ${source} da cuenta de que`
       : 'El mismo reporte agrega que';
     return `${lead} ${lowerFirst(part)}.`;
-  }).join('\n\n');
+  });
+  const scopeParagraph = `El alcance de esta nota se mantiene en la información visible de la publicación consultada. No se agregan cifras, responsables, causas ni consecuencias que no estén expresamente incluidos en esa referencia pública.`;
+  const followUpParagraph = `Sullana Noticias conserva el enlace a la fuente original para facilitar la consulta del contexto. Si la fuente publica una actualización verificable, el contenido podrá revisarse con esa nueva referencia.`;
+  const body = [...sourceParagraphs, scopeParagraph, followUpParagraph].join('\n\n');
   return {
     summary,
     body,
-    metaDescription: summary.replace(/\s+/g, ' ').slice(0, 155),
+    metaDescription: `Noticias de Sullana y Piura. ${summary}`.replace(/\s+/g, ' ').slice(0, 155),
   };
 }
