@@ -52,9 +52,19 @@ export default {
   },
 
   async scheduled(controller, env) {
+    const scheduleContext = { cron: controller.cron, scheduled_time: controller.scheduledTime };
+    console.log('[SCHEDULED]', scheduleContext);
     const executionKey = `github-dispatch:${controller.cron}:${controller.scheduledTime}`;
-    if (await env.EXECUTIONS.get(executionKey)) {
-      console.log('[SKIP_DUPLICATE]', { cron: controller.cron, scheduled_time: controller.scheduledTime });
+    let previousExecution;
+    try {
+      previousExecution = await env.EXECUTIONS.get(executionKey);
+    } catch (error) {
+      console.error('[ERROR]', { ...scheduleContext, code: 'EXECUTIONS_KV_READ_FAILED', detail: error instanceof Error ? error.message : 'KV_READ_FAILED' });
+      controller.noRetry();
+      return;
+    }
+    if (previousExecution) {
+      console.log('[SKIP_DUPLICATE]', scheduleContext);
       controller.noRetry();
       return;
     }
