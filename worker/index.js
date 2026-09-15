@@ -12,7 +12,7 @@ const STYLE = `
 const RESPONSIVE_LAYOUT_STYLE = `
 @media (min-width:521px) and (max-width:760px){.grid,.principles{grid-template-columns:repeat(2,minmax(0,1fr))}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .hero{padding:48px 0 34px}.hero h1{font-size:clamp(44px,8vw,92px)}
-@media(max-width:760px){.hero{padding:30px 0 12px}.hero h1{font-size:clamp(42px,8vw,82px)}.hero .lede{margin:12px 0;font-size:16px}.hero .meta{margin-top:10px}.home-news{padding-top:24px}.home-news>.meta{margin-top:12px}.home-news .heading{margin-bottom:14px}}
+@media(max-width:760px){.hero{padding:30px 0 12px}.hero h1{font-size:clamp(42px,8vw,82px)}.hero .lede{margin:12px 0;font-size:16px}.hero .meta{margin-top:10px}.home-news{padding-top:24px;scroll-margin-top:18px}.home-news>.meta{margin-top:12px}.home-news .heading{margin-bottom:14px}}
 `;
 
 const esc = (value = '') => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
