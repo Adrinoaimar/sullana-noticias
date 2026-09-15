@@ -38,6 +38,32 @@ class PlaywrightTextExtractionTests(unittest.TestCase):
         text = MODULE.PlaywrightFacebookSourceAdapter._video_text(lines)
         self.assertEqual(text, "#Sullana\nTexto principal de la publicación pública.")
 
+    def test_feed_text_stops_at_next_source_metadata(self):
+        lines = [
+            "13h",
+            "Texto principal de la publicación pública.",
+            "El Chilalo Noticias",
+            "102 views",
+            "19m ago",
+            "0:29",
+            "Texto de otro video relacionado.",
+        ]
+        text = MODULE.PlaywrightFacebookSourceAdapter._text_from_lines(lines, 0, "El Chilalo Noticias")
+        self.assertEqual(text, "Texto principal de la publicación pública.")
+
+    def test_video_text_stops_at_next_source_metadata(self):
+        lines = [
+            "#Sullana",
+            "Texto principal del video.",
+            "El Chilalo Noticias",
+            "102 views",
+            "19m ago",
+            "0:29",
+            "Texto de otro video relacionado.",
+        ]
+        text = MODULE.PlaywrightFacebookSourceAdapter._video_text(lines, "El Chilalo Noticias")
+        self.assertEqual(text, "#Sullana\nTexto principal del video.")
+
     def test_relative_labels_are_recognized_for_same_visible_caption(self):
         self.assertTrue(MODULE._is_relative_date_label("6m"))
         self.assertTrue(MODULE._is_relative_date_label("7m"))
