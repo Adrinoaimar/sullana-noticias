@@ -92,13 +92,13 @@ npm run site:validate
 
 Configurar en Sites/Cloudflare los secretos `ADMIN_PASSWORD` e `INGEST_TOKEN`. El ingestor Python debe ejecutar `PlaywrightFacebookSourceAdapter` en un runner persistente/cron y enviar solo JSON normalizado a `POST /api/ingest` con `Authorization: Bearer ...`. Antes de capturar, Actions consulta `GET /api/ingest-sources` con el mismo token para respetar las fuentes activas o pausadas desde el panel; si el endpoint no responde, conserva la configuración versionada como fallback.
 
-El servidor Node/SQLite local requiere además un proceso persistente y almacenamiento durable. Antes de usar cualquiera de los dos entornos:
+El servidor Node/SQLite local requiere además un proceso persistente y almacenamiento durable. Para la producción actual basada en D1 + GitHub Actions:
 
 1. Crear `ADMIN_PASSWORD` como secreto del proveedor.
 2. Configurar `SITE_URL` con dominio real y `NODE_ENV=production`.
 3. Montar `data/` como volumen persistente o migrar las consultas a D1/PostgreSQL.
-4. Instalar `services/facebook-ingestor/requirements.txt` en worker Python.
-5. Programar una ejecución cada 20–30 minutos con límite, timeout, rate limiting y backoff.
+4. Instalar `services/facebook-ingestor/requirements.txt` y Chromium en el runner Linux de GitHub Actions.
+5. Mantener `scheduled-ingest.yml` en el branch por defecto, con límite, timeout, rate limiting y backoff.
 6. Activar solo fuentes revisadas; no activar `auto_publish`.
 7. Configurar `GA4_MEASUREMENT_ID` con un ID real y validar consentimiento/privacidad.
    El panel ya muestra analytics first-party desde D1 (`article_view`, `category_view`, fuentes y compartidos); GA4 sigue siendo opcional.
