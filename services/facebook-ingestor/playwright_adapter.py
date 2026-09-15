@@ -227,6 +227,24 @@ def _is_relative_date_label(value: Any) -> bool:
     return bool(_RELATIVE_DATE.fullmatch(_clean_line(str(value or "")).lower()))
 
 
+def _same_visible_post(first: dict[str, Any], second: dict[str, Any]) -> bool:
+    """Detect the same feed item repeated by Facebook variants."""
+    first_text = re.sub(r"\s+", " ", str(first.get("text") or "")).strip().casefold()
+    second_text = re.sub(r"\s+", " ", str(second.get("text") or "")).strip().casefold()
+    if not first_text or first_text != second_text or len(first_text) < 24:
+        return False
+    first_date = str(first.get("published_at") or "").strip().casefold()
+    second_date = str(second.get("published_at") or "").strip().casefold()
+    return bool(
+        first_date
+        and second_date
+        and (
+            first_date == second_date
+            or (_is_relative_date_label(first_date) and _is_relative_date_label(second_date))
+        )
+    )
+
+
 def _html_attribute(attributes: str, name: str) -> str:
     match = re.search(rf"\b{name}\s*=\s*(['\"])(.*?)\1", attributes, flags=re.I | re.S)
     return html.unescape(match.group(2)) if match else ""
@@ -1107,22 +1125,10 @@ class PlaywrightFacebookSourceAdapter:
 
         def add_post(post: dict[str, Any]) -> None:
             """Keep one best visible representation per post id or URL."""
-            text_key = re.sub(r"\s+", " ", str(post.get("text") or "")).strip().casefold()
-            date_key = str(post.get("published_at") or "").strip().casefold()
             for index, existing in enumerate(posts):
                 same_id = post.get("post_id") and existing.get("post_id") == post.get("post_id")
                 same_url = post.get("post_url") and existing.get("post_url") == post.get("post_url")
-                existing_text_key = re.sub(r"\s+", " ", str(existing.get("text") or "")).strip().casefold()
-                existing_date_key = str(existing.get("published_at") or "").strip().casefold()
-                same_content = bool(
-                    text_key
-                    and len(text_key) >= 40
-                    and text_key == existing_text_key
-                    and (
-                        date_key == existing_date_key
-                        or (_is_relative_date_label(date_key) and _is_relative_date_label(existing_date_key))
-                    )
-                )
+                same_content = _same_visible_post(post, existing)
                 if not (same_id or same_url or same_content):
                     continue
                 if len(str(post.get("text") or "")) > len(str(existing.get("text") or "")) or len(post.get("media") or []) > len(existing.get("media") or []):
