@@ -12,7 +12,7 @@ import os
 import re
 from datetime import datetime
 from typing import Any
-from urllib.parse import parse_qs, urlencode, urljoin, urlsplit, urlunsplit
+from urllib.parse import parse_qs, unquote, urlencode, urljoin, urlsplit, urlunsplit
 
 try:
     from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
@@ -496,6 +496,22 @@ class PlaywrightFacebookSourceAdapter:
                 content.append(line)
         return "\n".join(content).strip()
 
+    @staticmethod
+    def _video_caption_matches_url(video_url: str, text: str) -> bool:
+        """Reject a caption that Facebook attached to an unrelated video URL."""
+        parts = [unquote(part) for part in urlsplit(video_url).path.split("/") if part]
+        slug = ""
+        if len(parts) >= 2 and not re.fullmatch(r"\d+", parts[-1]):
+            slug = parts[-1]
+        elif len(parts) >= 3 and not re.fullmatch(r"\d+", parts[-2]):
+            slug = parts[-2]
+        slug_tokens = _text_signature(slug.replace("-", " "))
+        if not slug_tokens:
+            return True
+        overlap = len(slug_tokens & _text_signature(text))
+        threshold = 2 if len(slug_tokens) >= 4 else 1
+        return overlap >= threshold
+
     def _extract_video_page(self, page: Any, source: dict[str, Any], identifier: str, video_url: str) -> dict[str, Any] | None:
         """Parse text/date from a publicly visible video detail page."""
         try:
@@ -521,6 +537,14 @@ class PlaywrightFacebookSourceAdapter:
                 logger.info(
                     "source=%s video_skip=missing_fields date=%s text_len=%d lines=%d",
                     source_name or "unknown", bool(date_label), len(text), len(lines),
+                )
+                return None
+            if not self._video_caption_matches_url(video_url, text):
+                logger.warning(
+                    "source=%s video_skip=caption_url_mismatch url=%s text_len=%d",
+                    source_name or "unknown",
+                    video_url,
+                    len(text),
                 )
                 return None
             media = self._media(body)

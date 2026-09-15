@@ -43,6 +43,13 @@ class PlaywrightTextExtractionTests(unittest.TestCase):
         self.assertTrue(MODULE._is_relative_date_label("7m"))
         self.assertFalse(MODULE._is_relative_date_label("June 24, 2022"))
 
+    def test_video_caption_must_match_descriptive_public_url(self):
+        unrelated = "[AVISO] Se vienen los talleres productivos para las mujeres."
+        whale_url = "https://www.facebook.com/ElChilaloNoticias/videos/pescador-se-lanza-al-mar-para-salvar-a-una-ballena/1393457035560823"
+        matching = "Pescador se lanza al mar para salvar a una ballena."
+        self.assertFalse(MODULE.PlaywrightFacebookSourceAdapter._video_caption_matches_url(whale_url, unrelated))
+        self.assertTrue(MODULE.PlaywrightFacebookSourceAdapter._video_caption_matches_url(whale_url, matching))
+
 
 if __name__ == "__main__":
     unittest.main()
