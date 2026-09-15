@@ -11,6 +11,8 @@ const STYLE = `
 
 const RESPONSIVE_LAYOUT_STYLE = `
 @media (min-width:521px) and (max-width:760px){.grid,.principles{grid-template-columns:repeat(2,minmax(0,1fr))}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.hero{padding:48px 0 34px}.hero h1{font-size:clamp(44px,8vw,92px)}
+@media(max-width:760px){.hero{padding:34px 0 28px}}
 `;
 
 const esc = (value = '') => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
