@@ -32,6 +32,17 @@ const html = (value, status = 200, headers = {}) => new Response(value, { status
 const text = (value, type = 'text/plain; charset=utf-8', status = 200, headers = {}) => new Response(value, { status, headers: { 'content-type': type, ...headers } });
 const now = () => new Date().toISOString();
 const originOf = (request) => new URL(request.url).origin;
+const isoDate = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(raw) ? `${raw.replace(' ', 'T')}Z` : raw;
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+};
+const rfc822Date = (value) => {
+  const iso = isoDate(value);
+  return iso ? new Date(iso).toUTCString() : null;
+};
 const dbRows = async (db, sql, ...values) => (await db.prepare(sql).bind(...values).all()).results || [];
 const dbFirst = async (db, sql, ...values) => (await db.prepare(sql).bind(...values).first()) || null;
 const dbRun = async (db, sql, ...values) => db.prepare(sql).bind(...values).run();
@@ -190,7 +201,7 @@ function layout(env, request, title, description, body, extra = '', canonicalOve
     { '@context': 'https://schema.org', '@type': 'Organization', name: 'Sullana Noticias', url: siteOrigin, logo: ogImage },
     { '@context': 'https://schema.org', '@type': 'WebSite', name: 'Sullana Noticias', url: siteOrigin, inLanguage: 'es-PE' },
   ]);
-  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title><meta name="description" content="${esc(description)}">${MONETAG_SITE_VERIFICATION}<link rel="canonical" href="${esc(origin)}"><meta property="og:type" content="website"><meta property="og:site_name" content="Sullana Noticias"><meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(description)}"><meta property="og:url" content="${esc(origin)}"><meta property="og:image" content="${esc(ogImage)}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${esc(ogImage)}"><script type="application/ld+json">${siteSchema}</script><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23e86f42'/%3E%3Ctext x='32' y='40' text-anchor='middle' font-family='Arial' font-size='22' font-weight='700' fill='white'%3ESN%3C/text%3E%3C/svg%3E"><style>${STYLE}</style>${analytics}${monetagTag}${extra}</head><body><a class="skip" href="#contenido">Saltar al contenido</a><header class="header"><div class="shell header-row"><a class="brand" href="/"><span class="mark">SN</span><span>Sullana<br><strong>Noticias</strong></span></a><nav class="nav" aria-label="Navegación"><a href="/">Inicio</a>${publicSectionLinks()}<a href="/admin">Panel</a></nav></div></header>${adSlot(env, 'header')}<main id="contenido">${body}</main><footer class="footer"><div class="shell"><strong>Sullana Noticias</strong><p>Información local, fuentes identificables y revisión humana.</p><a href="/rss.xml">RSS</a> · <a href="/sitemap.xml">Mapa del sitio</a></div></footer><script>${CLIENT_JS}</script></body></html>`;
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title><meta name="description" content="${esc(description)}">${MONETAG_SITE_VERIFICATION}<link rel="canonical" href="${esc(origin)}"><link rel="alternate" type="application/rss+xml" title="Sullana Noticias RSS" href="${esc(`${siteOrigin}/rss.xml`)}"><meta property="og:type" content="website"><meta property="og:site_name" content="Sullana Noticias"><meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(description)}"><meta property="og:url" content="${esc(origin)}"><meta property="og:image" content="${esc(ogImage)}"><meta property="og:locale" content="es_PE"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${esc(ogImage)}"><script type="application/ld+json">${siteSchema}</script><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23e86f42'/%3E%3Ctext x='32' y='40' text-anchor='middle' font-family='Arial' font-size='22' font-weight='700' fill='white'%3ESN%3C/text%3E%3C/svg%3E"><style>${STYLE}</style>${analytics}${monetagTag}${extra}</head><body><a class="skip" href="#contenido">Saltar al contenido</a><header class="header"><div class="shell header-row"><a class="brand" href="/"><span class="mark">SN</span><span>Sullana<br><strong>Noticias</strong></span></a><nav class="nav" aria-label="Navegación"><a href="/">Inicio</a>${publicSectionLinks()}<a href="/admin">Panel</a></nav></div></header>${adSlot(env, 'header')}<main id="contenido">${body}</main><footer class="footer"><div class="shell"><strong>Sullana Noticias</strong><p>Información local, fuentes identificables y revisión humana.</p><a href="/rss.xml">RSS</a> · <a href="/sitemap.xml">Mapa del sitio</a></div></footer><script>${CLIENT_JS}</script></body></html>`;
 }
 
 const CLIENT_JS = `(()=>{const context=()=>({path:location.pathname,referrer:document.referrer||''}),send=(name,metadata={},articleId=null)=>{if(typeof window.gtag==='function')window.gtag('event',name,metadata);fetch('/api/events',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event_name:name,article_id:articleId,metadata})}).catch(()=>{})};document.querySelectorAll('[data-event]').forEach(el=>el.addEventListener('click',()=>send(el.dataset.event,context(),el.dataset.articleId?Number(el.dataset.articleId):null)));document.querySelectorAll('[data-share]').forEach(b=>b.addEventListener('click',async()=>{const u=b.dataset.url,t=b.dataset.title||document.title;const n=b.dataset.share==='copy'?'copy_link':b.dataset.share+'_share',id=b.dataset.articleId?Number(b.dataset.articleId):null;send('article_share',{...context(),channel:n},id);send(n,context(),id);if(b.dataset.share==='copy'){await navigator.clipboard?.writeText(u);b.textContent='Enlace copiado';setTimeout(()=>b.textContent='Copiar enlace',1800)}else if(b.dataset.share==='whatsapp')window.open('https://wa.me/?text='+encodeURIComponent(t+' '+u),'_blank','noopener');else window.open('https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent(u),'_blank','noopener')}));})();`;
@@ -538,8 +549,30 @@ export default {
         if (publish && request.method === 'POST') { const body=await bodyJson(request); const item=await dbFirst(env.DB,'SELECT * FROM news_drafts WHERE id=?',Number(publish[1])); if(!item)return json({error:'DRAFT_NOT_FOUND'},404); if(item.verification_status==='VERIFY'&&body.verified!==true)return json({error:'VERIFICATION_REQUIRED'},409); const result=await publishDraftRecord(env.DB, originOf(request), item); return json({article:result.article},result.created?201:200); }
         return json({error:'NOT_FOUND'},404);
       }
-      if (url.pathname === '/sitemap.xml') { const articles=await articleRows(env,100); const base=originOf(request); return text(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${esc(base)}/</loc></url>${articles.map((item)=>`<url><loc>${esc(base)}/noticias/${esc(item.slug)}</loc><lastmod>${esc(item.modified_at)}</lastmod></url>`).join('')}</urlset>`,'application/xml; charset=utf-8',200,{'cache-control':'public,max-age=300'}); }
-      if (url.pathname === '/rss.xml') { const articles=await articleRows(env,30); const base=originOf(request); return text(`<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>Sullana Noticias</title><link>${esc(base)}</link><description>Noticias locales de Sullana, Piura.</description>${articles.map((item)=>`<item><title>${esc(item.title)}</title><link>${esc(base)}/noticias/${esc(item.slug)}</link><guid>${esc(base)}/noticias/${esc(item.slug)}</guid><description>${esc(item.dek||item.summary)}</description></item>`).join('')}</channel></rss>`,'application/rss+xml; charset=utf-8',200,{'cache-control':'public,max-age=300'}); }
+      if (url.pathname === '/sitemap.xml') {
+        const articles = await articleRows(env, 100);
+        const base = originOf(request);
+        const home = `<url><loc>${esc(`${base}/`)}</loc></url>`;
+        const categories = PUBLIC_SECTIONS.map(([slug]) => `<url><loc>${esc(`${base}/categoria/${slug}`)}</loc></url>`).join('');
+        const articleUrls = articles.map((item) => {
+          const lastmod = isoDate(item.modified_at || item.published_at);
+          return `<url><loc>${esc(`${base}/noticias/${item.slug}`)}</loc>${lastmod ? `<lastmod>${esc(lastmod)}</lastmod>` : ''}</url>`;
+        }).join('');
+        return text(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${home}${categories}${articleUrls}</urlset>`, 'application/xml; charset=utf-8', 200, { 'cache-control': 'public,max-age=300' });
+      }
+      if (url.pathname === '/rss.xml') {
+        const articles = await articleRows(env, 30);
+        const base = originOf(request);
+        const buildDate = rfc822Date(articles[0]?.modified_at || articles[0]?.published_at) || new Date().toUTCString();
+        const items = articles.map((item) => {
+          const link = `${base}/noticias/${item.slug}`;
+          const pubDate = rfc822Date(item.published_at || item.modified_at);
+          const source = item.source_name ? `<source url="${esc(item.source_url || base)}">${esc(item.source_name)}</source>` : '';
+          const category = item.category_name ? `<category>${esc(item.category_name)}</category>` : '';
+          return `<item><title>${esc(item.title)}</title><link>${esc(link)}</link><guid isPermaLink="true">${esc(link)}</guid>${pubDate ? `<pubDate>${esc(pubDate)}</pubDate>` : ''}${category}${source}<description>${esc(item.dek || item.summary)}</description></item>`;
+        }).join('');
+        return text(`<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Sullana Noticias</title><link>${esc(base)}</link><atom:link href="${esc(`${base}/rss.xml`)}" rel="self" type="application/rss+xml"/><description>Noticias locales de Sullana, Piura.</description><lastBuildDate>${esc(buildDate)}</lastBuildDate>${items}</channel></rss>`, 'application/rss+xml; charset=utf-8', 200, { 'cache-control': 'public,max-age=300' });
+      }
       if (url.pathname === '/og-default.svg') return text(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630"><rect width="1200" height="630" fill="#18312d"/><circle cx="1030" cy="100" r="260" fill="#e86f42"/><text x="90" y="250" fill="#fffefa" font-family="Georgia,serif" font-size="92" font-weight="700">Sullana</text><text x="90" y="355" fill="#fffefa" font-family="Georgia,serif" font-size="92" font-weight="700">Noticias</text><text x="94" y="425" fill="#d3dfd7" font-family="Arial,sans-serif" font-size="28">Información local · Piura</text></svg>`, 'image/svg+xml; charset=utf-8', 200, {'cache-control':'public,max-age=86400'});
       if (url.pathname === '/robots.txt') return text(`User-agent: *\nAllow: /\nDisallow: /admin\nSitemap: ${originOf(request)}/sitemap.xml\n`);
       if (url.pathname === '/admin') return adminPage(env, request);
