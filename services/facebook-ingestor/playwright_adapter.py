@@ -1046,13 +1046,41 @@ class PlaywrightFacebookSourceAdapter:
                 continue
         return False
 
-    def _expand_page_captions(self, page: Any, limit: int = 12) -> int:
-        """Expand a bounded number of visible public captions on the feed."""
+    def _expand_photo_context_captions(self, page: Any, limit: int = 12) -> int:
+        """Expand captions inside the same rendered context as each public photo.
+
+        A Page can expose a profile-level ``Ver más`` before the feed caption.
+        Walking from each visible post-photo link keeps the click scoped to the
+        public post and avoids expanding unrelated profile controls.
+        """
         expanded = 0
-        for _ in range(max(0, min(int(limit), 20))):
-            if not self._expand_visible_text(page, page):
-                break
-            expanded += 1
+        try:
+            photos = page.locator("a[href*='/photo/']")
+            photo_count = min(photos.count(), 160)
+            for index in range(photo_count):
+                context = photos.nth(index)
+                for _ in range(8):
+                    context = context.locator("xpath=..")
+                    if self._expand_visible_text(context, page):
+                        expanded += 1
+                        break
+                if expanded >= max(0, min(int(limit), 20)):
+                    break
+        except Exception:
+            return expanded
+        return expanded
+
+    def _expand_page_captions(self, page: Any, limit: int = 12) -> int:
+        """Expand bounded public captions without touching profile controls."""
+        expanded = 0
+        bounded_limit = max(0, min(int(limit), 20))
+        articles = page.locator("div[role='article']")
+        article_count = min(articles.count(), bounded_limit)
+        for index in range(article_count):
+            if self._expand_visible_text(articles.nth(index), page):
+                expanded += 1
+        if not article_count:
+            expanded += self._expand_photo_context_captions(page, bounded_limit)
         if expanded:
             logger.info("expanded_public_captions=%d", expanded)
         return expanded
