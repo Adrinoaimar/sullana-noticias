@@ -3,7 +3,7 @@ name: Sullana Noticias · scheduled ingest
 on:
   # GitHub Actions owns the conservative public-ingestion cadence.
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "7,37 * * * *"
   workflow_dispatch:
 
 permissions:
