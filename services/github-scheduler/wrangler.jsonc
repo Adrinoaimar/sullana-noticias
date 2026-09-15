@@ -1,0 +1,22 @@
+{
+  "$schema": "https://developers.cloudflare.com/workers/wrangler/configuration/schema.json",
+  "name": "sullana-noticias-github-scheduler",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-15",
+  "workers_dev": true,
+  "vars": {
+    "GITHUB_OWNER": "Adrinoaimar",
+    "GITHUB_REPOSITORY": "sullana-noticias",
+    "GITHUB_WORKFLOW": "scheduled-ingest.yml",
+    "GITHUB_REF": "main"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "EXECUTIONS",
+      "id": "846c59ab1d5348c19756611b3b339a73"
+    }
+  ],
+  "triggers": {
+    "crons": ["17,47 * * * *"]
+  }
+}

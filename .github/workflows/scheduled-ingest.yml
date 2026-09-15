@@ -1,9 +1,7 @@
 name: Sullana Noticias · scheduled ingest
 
 on:
-  schedule:
-    # Isolated scheduler; the reusable ingest workflow owns the scraper job.
-    - cron: "17,47 * * * *"
+  # External Cloudflare scheduler dispatches this workflow; manual runs remain available.
   workflow_dispatch:
 
 permissions:
