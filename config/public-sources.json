@@ -53,6 +53,11 @@
     "facebook_identifier": "MuniPiura"
   },
   {
+    "name": "Municipalidad Provincial de Sullana",
+    "facebook_url": "https://www.facebook.com/MuniSullana/",
+    "facebook_identifier": "MuniSullana"
+  },
+  {
     "name": "Gobierno Regional Piura",
     "facebook_url": "https://www.facebook.com/GobiernoRegionalPiura/",
     "facebook_identifier": "GobiernoRegionalPiura"
