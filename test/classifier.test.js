@@ -22,6 +22,15 @@ test('political government references require verification', () => {
   assert.equal(result.status, 'VERIFY');
 });
 
+test('political party references require verification and political section', () => {
+  const result = classify('#Bellavista: se suma con entusiasmo al equipo de Somos Perú.', {
+    trust_level: 'TRUSTED_MEDIA',
+  });
+  assert.equal(result.category_slug, 'politica-local');
+  assert.equal(result.sensitive, true);
+  assert.equal(result.status, 'VERIFY');
+});
+
 test('parricide reports use the security section and require verification', () => {
   const result = classify('En vivo: intento de parricidio reportado en Jesús María de Sullana.', {
     trust_level: 'TRUSTED_MEDIA',

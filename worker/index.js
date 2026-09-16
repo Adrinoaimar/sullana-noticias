@@ -105,7 +105,7 @@ const imageMarkup = (article, className) => {
 const signalText = (value) => String(value || '').toLowerCase()
   .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   .replace(/[013456]/g, (character) => ({ '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '6': 'o' })[character]);
-const SENSITIVE_TERMS = ['accidente', 'delito', 'fallec', 'muere', 'muerto', 'muerta', 'denuncia', 'emergencia', 'acusaci', 'acusan', 'asesin', 'parricid', 'muerte', 'politic', 'presidencial', 'electoral', 'eleccion', 'encuest', 'candidat', 'candidatur', 'votacion', 'voto', 'alcald', 'gobernador', 'regidor', 'proselit', 'gobierno', 'ministro', 'congreso', 'keiko', 'ideologi', 'crimen', 'matanz', 'secuest', 'extors', 'asalto', 'atraco', 'robo', 'robado', 'hurto', 'homicid', 'violencia', 'detenid', 'captur', 'fiscalia', 'policia', 'pnp', 'pelea', 'agresion', 'dispar', 'arma', 'herid', 'acusad', 'amenaz', 'cadaver', 'desaparec'];
+const SENSITIVE_TERMS = ['accidente', 'delito', 'fallec', 'muere', 'muerto', 'muerta', 'denuncia', 'emergencia', 'acusaci', 'acusan', 'asesin', 'parricid', 'muerte', 'politic', 'presidencial', 'electoral', 'eleccion', 'encuest', 'candidat', 'candidatur', 'votacion', 'voto', 'alcald', 'gobernador', 'regidor', 'proselit', 'gobierno', 'ministro', 'congreso', 'keiko', 'ideologi', 'somos peru', 'peru libre', 'fuerza popular', 'accion popular', 'alianza para el progreso', 'avanza pais', 'renovacion popular', 'podemos peru', 'juntos por el peru', 'partido politico', 'crimen', 'matanz', 'secuest', 'extors', 'asalto', 'atraco', 'robo', 'robado', 'hurto', 'homicid', 'violencia', 'detenid', 'captur', 'fiscalia', 'policia', 'pnp', 'pelea', 'agresion', 'dispar', 'arma', 'herid', 'acusad', 'amenaz', 'cadaver', 'desaparec'];
 const FACEBOOK_CHROME_PATTERNS = [
   /\bpage\s*[·•]\s*government organization\b/i,
   /\blog in\s+forgot account\b/i,
@@ -121,7 +121,7 @@ function isFacebookChromeText(value) {
 function sectionFor(value) {
   const text = signalText(value);
   if (/\bpresident(?:e|a)\b|presidencia|palacio de gobierno|ejecutivo nacional|congreso|ministro/.test(text)) return 'presidencia';
-  if (/electoral|eleccion|encuest|candidat|candidatur|votacion|\bvoto\b|alcald|gobernador|regidor|consejero regional|campana politica|partido politico|proselit|gobierno|keiko|ideologi/.test(text)) return 'politica-local';
+  if (/electoral|eleccion|encuest|candidat|candidatur|votacion|\bvoto\b|alcald|gobernador|regidor|consejero regional|campana politica|partido politico|somos peru|peru libre|fuerza popular|accion popular|alianza para el progreso|avanza pais|renovacion popular|podemos peru|juntos por el peru|proselit|gobierno|keiko|ideologi/.test(text)) return 'politica-local';
   if (/asalto|asaltaron|asaltante|atraco|robo|robado|hurto|delincu|crimen|matanz|secuest|extors/.test(text)) return 'asaltos';
   if (/accidente|incendio|rescate|desaparec|emergencia|evacuaci|muere|muerto|muerta|fallec/.test(text)) return 'emergencias';
   if (/corte de agua|agua potable|luz electrica|alumbrado|pista|via publica|servicio/.test(text)) return 'servicios';
