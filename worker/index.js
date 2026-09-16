@@ -215,7 +215,12 @@ const CLIENT_JS = `(()=>{const context=()=>({path:location.pathname,referrer:doc
 
 async function articleRows(env, limit = 30) {
   if (!env.DB) return [];
-  return dbRows(env.DB, 'SELECT a.*, c.name AS category_name, c.slug AS category_slug FROM articles a LEFT JOIN categories c ON c.id=a.category_id ORDER BY a.published_at DESC LIMIT ?', Math.min(Math.max(Number(limit) || 30, 1), 100));
+  return dbRows(env.DB, `SELECT a.*, c.name AS category_name, c.slug AS category_slug
+    FROM articles a
+    JOIN news_drafts d ON d.id=a.draft_id
+    LEFT JOIN categories c ON c.id=a.category_id
+    WHERE d.editorial_status='PUBLISHED' AND d.verification_status='VERIFIED'
+    ORDER BY a.published_at DESC LIMIT ?`, Math.min(Math.max(Number(limit) || 30, 1), 100));
 }
 
 const displayDek = (article) => {
@@ -245,14 +250,24 @@ async function category(env, request, slug) {
 async function search(env, request) {
   const query = new URL(request.url).searchParams.get('q')?.trim().slice(0, 80) || '';
   const pattern = `%${query}%`;
-  const articles = env.DB && query ? await dbRows(env.DB, 'SELECT a.*, c.name AS category_name, c.slug AS category_slug FROM articles a LEFT JOIN categories c ON c.id=a.category_id WHERE lower(a.title) LIKE lower(?) OR lower(a.dek) LIKE lower(?) OR lower(a.body) LIKE lower(?) ORDER BY a.published_at DESC LIMIT 30', pattern, pattern, pattern) : [];
+  const articles = env.DB && query ? await dbRows(env.DB, `SELECT a.*, c.name AS category_name, c.slug AS category_slug
+    FROM articles a
+    JOIN news_drafts d ON d.id=a.draft_id
+    LEFT JOIN categories c ON c.id=a.category_id
+    WHERE d.editorial_status='PUBLISHED' AND d.verification_status='VERIFIED'
+      AND (lower(a.title) LIKE lower(?) OR lower(a.dek) LIKE lower(?) OR lower(a.body) LIKE lower(?))
+    ORDER BY a.published_at DESC LIMIT 30`, pattern, pattern, pattern) : [];
   if (env.DB && query) await dbRun(env.DB, 'INSERT INTO events (event_name,article_id,metadata_json) VALUES (?,?,?)', 'search', null, JSON.stringify({ path: new URL(request.url).pathname, query_length: query.length, results: articles.length, referrer: request.headers.get('referer') || '' }));
   const body = `<section class="shell section"><div class="kicker">Archivo local</div><h1>Buscar</h1><form class="search-form" action="/buscar" method="get"><label for="search-query">Término</label><input id="search-query" name="q" value="${esc(query)}" maxlength="80" required><button class="button dark" type="submit">Buscar</button></form>${query ? `<p class="meta">Resultados para “${esc(query)}”</p><div class="grid">${articles.length ? articles.map(card).join('') : '<div class="empty"><strong>No encontramos publicaciones.</strong><p>Prueba con otro término local.</p></div>'}</div>` : '<p class="lede">Busca artículos publicados de Sullana y la provincia.</p>'}</section>`;
   return html(layout(env, request, `Buscar${query ? ` · ${query}` : ''} · Sullana Noticias`, 'Busca noticias locales de Sullana, Piura.', body), 200, { 'cache-control': 'private, no-store' });
 }
 
 async function article(env, request, slug) {
-  const item = env.DB ? await dbFirst(env.DB, 'SELECT a.*, c.name AS category_name FROM articles a LEFT JOIN categories c ON c.id=a.category_id WHERE a.slug=?', slug) : null;
+  const item = env.DB ? await dbFirst(env.DB, `SELECT a.*, c.name AS category_name
+    FROM articles a
+    JOIN news_drafts d ON d.id=a.draft_id
+    LEFT JOIN categories c ON c.id=a.category_id
+    WHERE a.slug=? AND d.editorial_status='PUBLISHED' AND d.verification_status='VERIFIED'`, slug) : null;
   if (!item) return html(layout(env, request, 'Noticia no encontrada', 'La noticia solicitada no está disponible.', '<section class="shell section"><h1>Noticia no encontrada</h1><p>Puede haber sido retirada o aún está en revisión.</p><a class="button dark" href="/">Volver al inicio</a></section>'), 404);
   const canonical = `${originOf(request)}/noticias/${encodeURIComponent(item.slug)}`;
   const ogImage = featuredImage(item)?.url || `${originOf(request)}/og-default.svg`;
@@ -397,21 +412,36 @@ async function refreshUneditedEditorial(db) {
 
 async function refreshDefaultClassifications(db) {
   const rows = await dbRows(db, `SELECT d.id AS draft_id, d.category_id AS current_category_id,
-      r.text, s.name AS source_name, s.trust_level
+      d.raw_post_id, d.editorial_status, d.verification_status,
+      r.text, r.processing_status AS raw_processing_status, s.name AS source_name, s.trust_level
     FROM news_drafts d
     JOIN raw_posts r ON r.id=d.raw_post_id
     JOIN sources s ON s.id=r.source_id
     JOIN categories c ON c.id=d.category_id
-    WHERE c.slug='actualidad'
     ORDER BY d.id ASC LIMIT 500`);
   let refreshed = 0;
   for (const item of rows) {
     const check = classify(item.text, { name: item.source_name, trust_level: item.trust_level });
-    if (check.category_slug === 'actualidad') continue;
     const category = await dbFirst(db, 'SELECT * FROM categories WHERE slug=?', check.category_slug);
-    if (!category || Number(category.id) === Number(item.current_category_id)) continue;
-    await dbRun(db, 'UPDATE news_drafts SET category_id=?,updated_at=? WHERE id=? AND category_id=?', category.id, now(), item.draft_id, item.current_category_id);
-    await dbRun(db, 'UPDATE articles SET category_id=?,modified_at=? WHERE draft_id=? AND category_id=?', category.id, now(), item.draft_id, item.current_category_id);
+    const categoryChanged = category && Number(category.id) !== Number(item.current_category_id);
+    const needsSensitiveReview = check.sensitive && (
+      item.editorial_status === 'PUBLISHED' ||
+      item.verification_status !== 'VERIFY' ||
+      item.raw_processing_status === 'PUBLISHED'
+    );
+    if (!categoryChanged && !needsSensitiveReview) continue;
+    if (categoryChanged) {
+      await dbRun(db, 'UPDATE news_drafts SET category_id=?,updated_at=? WHERE id=? AND category_id=?', category.id, now(), item.draft_id, item.current_category_id);
+      await dbRun(db, 'UPDATE articles SET category_id=?,modified_at=? WHERE draft_id=? AND category_id=?', category.id, now(), item.draft_id, item.current_category_id);
+    }
+    if (check.sensitive) {
+      await dbRun(db, `UPDATE news_drafts SET verification_status='VERIFY',
+        editorial_status=CASE WHEN editorial_status='PUBLISHED' THEN 'DRAFT' ELSE editorial_status END,
+        updated_at=? WHERE id=?`, now(), item.draft_id);
+      await dbRun(db, `UPDATE raw_posts SET verification_status='VERIFY',
+        processing_status=CASE WHEN processing_status='PUBLISHED' THEN 'DRAFTED' ELSE processing_status END
+        WHERE id=?`, item.raw_post_id);
+    }
     refreshed += 1;
   }
   return refreshed;
@@ -615,7 +645,12 @@ export default {
         return text(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${home}${categories}${articleUrls}</urlset>`, 'application/xml; charset=utf-8', 200, { 'cache-control': 'public,max-age=300' });
       }
       if (url.pathname === '/news-sitemap.xml') {
-        const articles = env.DB ? await dbRows(env.DB, `SELECT slug,title,published_at FROM articles WHERE datetime(published_at) >= datetime('now','-2 days') ORDER BY published_at DESC LIMIT 1000`) : [];
+        const articles = env.DB ? await dbRows(env.DB, `SELECT a.slug,a.title,a.published_at
+          FROM articles a
+          JOIN news_drafts d ON d.id=a.draft_id
+          WHERE d.editorial_status='PUBLISHED' AND d.verification_status='VERIFIED'
+            AND datetime(a.published_at) >= datetime('now','-2 days')
+          ORDER BY a.published_at DESC LIMIT 1000`) : [];
         const base = originOf(request);
         const entries = articles.map((item) => {
           const published = isoDate(item.published_at);
