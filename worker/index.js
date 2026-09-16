@@ -106,6 +106,17 @@ const signalText = (value) => String(value || '').toLowerCase()
   .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   .replace(/[013456]/g, (character) => ({ '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '6': 'o' })[character]);
 const SENSITIVE_TERMS = ['accidente', 'delito', 'fallec', 'muere', 'muerto', 'muerta', 'denuncia', 'emergencia', 'acusaci', 'acusan', 'asesin', 'parricid', 'muerte', 'politic', 'presidencial', 'electoral', 'eleccion', 'encuest', 'candidat', 'candidatur', 'votacion', 'voto', 'alcald', 'gobernador', 'regidor', 'proselit', 'gobierno', 'ministro', 'congreso', 'keiko', 'ideologi', 'crimen', 'matanz', 'secuest', 'extors', 'asalto', 'atraco', 'robo', 'robado', 'hurto', 'homicid', 'violencia', 'detenid', 'captur', 'fiscalia', 'policia', 'pnp', 'pelea', 'agresion', 'dispar', 'arma', 'herid', 'acusad', 'amenaz', 'cadaver', 'desaparec'];
+const FACEBOOK_CHROME_PATTERNS = [
+  /\bpage\s*[·•]\s*government organization\b/i,
+  /\blog in\s+forgot account\b/i,
+  /\bonline status indicator\s+active\b/i,
+  /sorry,\s*we['’]re having trouble playing this video\.?/i,
+];
+
+function isFacebookChromeText(value) {
+  const text = String(value || '');
+  return FACEBOOK_CHROME_PATTERNS.some((pattern) => pattern.test(text));
+}
 
 function sectionFor(value) {
   const text = signalText(value);
@@ -424,17 +435,23 @@ async function refreshDefaultClassifications(db) {
     const check = classify(item.text, { name: item.source_name, trust_level: item.trust_level });
     const category = await dbFirst(db, 'SELECT * FROM categories WHERE slug=?', check.category_slug);
     const categoryChanged = category && Number(category.id) !== Number(item.current_category_id);
+    const hasFacebookChrome = isFacebookChromeText(item.text);
     const needsSensitiveReview = check.sensitive && (
       item.editorial_status === 'PUBLISHED' ||
       item.verification_status !== 'VERIFY' ||
       item.raw_processing_status === 'PUBLISHED'
     );
-    if (!categoryChanged && !needsSensitiveReview) continue;
+    const needsFacebookChromeReview = hasFacebookChrome && (
+      item.editorial_status === 'PUBLISHED' ||
+      item.verification_status !== 'VERIFY' ||
+      item.raw_processing_status === 'PUBLISHED'
+    );
+    if (!categoryChanged && !needsSensitiveReview && !needsFacebookChromeReview) continue;
     if (categoryChanged) {
       await dbRun(db, 'UPDATE news_drafts SET category_id=?,updated_at=? WHERE id=? AND category_id=?', category.id, now(), item.draft_id, item.current_category_id);
       await dbRun(db, 'UPDATE articles SET category_id=?,modified_at=? WHERE draft_id=? AND category_id=?', category.id, now(), item.draft_id, item.current_category_id);
     }
-    if (check.sensitive) {
+    if (check.sensitive || hasFacebookChrome) {
       await dbRun(db, `UPDATE news_drafts SET verification_status='VERIFY',
         editorial_status=CASE WHEN editorial_status='PUBLISHED' THEN 'DRAFT' ELSE editorial_status END,
         updated_at=? WHERE id=?`, now(), item.draft_id);
@@ -452,7 +469,7 @@ const SAFE_BULK_CATEGORIES = new Set(['actualidad', 'servicios', 'educacion', 'd
 function isSafePublication(item) {
   const sourceTrust = String(item.source_trust_level || '');
   const check = classify(item.summary || item.body || item.title, { trust_level: sourceTrust });
-  return ['OFFICIAL', 'TRUSTED_MEDIA'].includes(sourceTrust) && SAFE_BULK_CATEGORIES.has(String(item.category_slug || '')) && check.status === 'RELEVANT' && !check.sensitive;
+  return ['OFFICIAL', 'TRUSTED_MEDIA'].includes(sourceTrust) && SAFE_BULK_CATEGORIES.has(String(item.category_slug || '')) && check.status === 'RELEVANT' && !check.sensitive && !isFacebookChromeText(item.summary || item.body || item.title);
 }
 
 async function publishDraftRecord(db, requestOrigin, item) {
@@ -683,4 +700,4 @@ export default {
   },
 };
 
-export { classify, sectionFor };
+export { classify, isFacebookChromeText, sectionFor };
