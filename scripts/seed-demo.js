@@ -15,7 +15,7 @@ const sources = [
   ['Municipalidad Provincial de Sullana', 'https://www.facebook.com/MuniSullana/', 'MuniSullana', 'OFFICIAL', 1],
   ['Municipalidad Provincial de Piura', 'https://www.facebook.com/MuniPiura/', 'MuniPiura', 'OFFICIAL', 1],
   ['Gobierno Regional Piura', 'https://www.facebook.com/GobiernoRegionalPiura/', 'GobiernoRegionalPiura', 'OFFICIAL', 1],
-  ['Municipalidad Distrital de Castilla - Piura', 'https://www.facebook.com/muni.castilla.3/', 'muni.castilla.3', 'OFFICIAL', 1],
+  ['Municipalidad Distrital de Castilla - Piura', 'https://www.facebook.com/MuniCastillaPiura/', 'MuniCastillaPiura', 'OFFICIAL', 1],
   ['Municipalidad Distrital de Veintiséis de Octubre', 'https://www.facebook.com/MunicipioVeintiseisDeOctubre/', 'MunicipioVeintiseisDeOctubre', 'OFFICIAL', 1],
 ];
 const addSource = db.prepare('INSERT OR IGNORE INTO sources (name, facebook_url, facebook_identifier, trust_level, enabled, auto_draft, auto_publish) VALUES (?, ?, ?, ?, ?, 1, 0)');

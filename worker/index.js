@@ -11,7 +11,7 @@ const STYLE = `
 
 const RESPONSIVE_LAYOUT_STYLE = `
 @media (min-width:521px) and (max-width:760px){.grid,.principles{grid-template-columns:repeat(2,minmax(0,1fr))}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
-.hero{padding:48px 0 34px}.hero h1{font-size:clamp(44px,8vw,92px)}
+.hero{padding:28px 0 20px}.hero h1{font-size:clamp(44px,7vw,76px)}
 @media(max-width:760px){.hero{padding:30px 0 12px}.hero h1{font-size:clamp(42px,8vw,82px)}.hero .lede{margin:12px 0;font-size:16px}.hero .meta{margin-top:10px}.home-news{padding-top:24px;scroll-margin-top:18px}.home-news>.meta{margin-top:12px}.home-news .heading{margin-bottom:14px}}
 `;
 
@@ -52,6 +52,8 @@ const rfc822Date = (value) => {
 const dbRows = async (db, sql, ...values) => (await db.prepare(sql).bind(...values).all()).results || [];
 const dbFirst = async (db, sql, ...values) => (await db.prepare(sql).bind(...values).first()) || null;
 const dbRun = async (db, sql, ...values) => db.prepare(sql).bind(...values).run();
+export const DEPRECATED_SOURCE_SQL = `UPDATE sources SET enabled=0, pause_reason='MANUAL', last_checked_at=?
+  WHERE sources.facebook_identifier=? AND EXISTS (SELECT 1 FROM sources AS canonical WHERE canonical.facebook_identifier=? AND canonical.id != sources.id)`;
 const bodyJson = async (request) => { try { return await request.json(); } catch { return {}; } };
 const publicMediaUrl = (value) => {
   try {
@@ -195,10 +197,13 @@ async function seed(db) {
     ['Municipalidad Provincial de Sullana', 'https://www.facebook.com/MuniSullana/', 'MuniSullana', 'OFFICIAL', 1],
     ['Municipalidad Provincial de Piura', 'https://www.facebook.com/MuniPiura/', 'MuniPiura', 'OFFICIAL', 1],
     ['Gobierno Regional Piura', 'https://www.facebook.com/GobiernoRegionalPiura/', 'GobiernoRegionalPiura', 'OFFICIAL', 1],
-    ['Municipalidad Distrital de Castilla - Piura', 'https://www.facebook.com/muni.castilla.3/', 'muni.castilla.3', 'OFFICIAL', 1],
+    ['Municipalidad Distrital de Castilla - Piura', 'https://www.facebook.com/MuniCastillaPiura/', 'MuniCastillaPiura', 'OFFICIAL', 1],
     ['Municipalidad Distrital de Veintiséis de Octubre', 'https://www.facebook.com/MunicipioVeintiseisDeOctubre/', 'MunicipioVeintiseisDeOctubre', 'OFFICIAL', 1],
   ];
   for (const source of sources) await dbRun(db, 'INSERT OR IGNORE INTO sources (name, facebook_url, facebook_identifier, trust_level, enabled, auto_draft, auto_publish) VALUES (?, ?, ?, ?, ?, 1, 0)', ...source);
+  await dbRun(db, DEPRECATED_SOURCE_SQL, now(), 'muni.castilla.3', 'MuniCastillaPiura');
+  await dbRun(db, `UPDATE sources SET facebook_url=?, enabled=1, pause_reason='NONE', last_checked_at=NULL
+    WHERE facebook_identifier=?`, 'https://www.facebook.com/MuniCastillaPiura/', 'MuniCastillaPiura');
   await dbRun(db, "UPDATE sources SET pause_reason='SCRAPER_ERROR' WHERE enabled=0 AND trust_level='TRUSTED_MEDIA' AND last_success_at IS NULL AND pause_reason='NONE'");
 }
 
