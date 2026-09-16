@@ -12,6 +12,7 @@ const sources = [
   ['El Chilalo Noticias', 'https://www.facebook.com/ElChilaloNoticias/', 'ElChilaloNoticias', 'TRUSTED_MEDIA', 1],
   ['Del Chira Noticias', 'https://www.facebook.com/delchiranoticias', 'delchiranoticias', 'TRUSTED_MEDIA', 1],
   ['El Churre Noticias - Sullana', 'https://www.facebook.com/elchurrenoticiasoficialsullana', 'elchurrenoticiasoficialsullana', 'TRUSTED_MEDIA', 1],
+  ['Municipalidad Provincial de Sullana', 'https://www.facebook.com/MuniSullana/', 'MuniSullana', 'OFFICIAL', 1],
   ['Municipalidad Provincial de Piura', 'https://www.facebook.com/MuniPiura/', 'MuniPiura', 'OFFICIAL', 1],
   ['Gobierno Regional Piura', 'https://www.facebook.com/GobiernoRegionalPiura/', 'GobiernoRegionalPiura', 'OFFICIAL', 1],
   ['Municipalidad Distrital de Castilla - Piura', 'https://www.facebook.com/muni.castilla.3/', 'muni.castilla.3', 'OFFICIAL', 1],
