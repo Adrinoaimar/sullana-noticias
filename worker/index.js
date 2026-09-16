@@ -199,8 +199,10 @@ async function seed(db) {
     ['Municipalidad Distrital de Veintiséis de Octubre', 'https://www.facebook.com/MunicipioVeintiseisDeOctubre/', 'MunicipioVeintiseisDeOctubre', 'OFFICIAL', 1],
   ];
   for (const source of sources) await dbRun(db, 'INSERT OR IGNORE INTO sources (name, facebook_url, facebook_identifier, trust_level, enabled, auto_draft, auto_publish) VALUES (?, ?, ?, ?, ?, 1, 0)', ...source);
-  await dbRun(db, `UPDATE sources SET facebook_url=?, facebook_identifier=?, enabled=1, pause_reason='NONE', last_checked_at=NULL
-    WHERE facebook_identifier=? AND pause_reason='SCRAPER_ERROR'`, 'https://www.facebook.com/MuniCastillaPiura/', 'MuniCastillaPiura', 'muni.castilla.3');
+  await dbRun(db, `UPDATE sources SET enabled=0, pause_reason='SCRAPER_ERROR', last_checked_at=?
+    WHERE facebook_identifier=? AND EXISTS (SELECT 1 FROM sources WHERE facebook_identifier=? AND id != sources.id)`, now(), 'muni.castilla.3', 'MuniCastillaPiura');
+  await dbRun(db, `UPDATE sources SET facebook_url=?, enabled=1, pause_reason='NONE', last_checked_at=NULL
+    WHERE facebook_identifier=?`, 'https://www.facebook.com/MuniCastillaPiura/', 'MuniCastillaPiura');
   await dbRun(db, "UPDATE sources SET pause_reason='SCRAPER_ERROR' WHERE enabled=0 AND trust_level='TRUSTED_MEDIA' AND last_success_at IS NULL AND pause_reason='NONE'");
 }
 
