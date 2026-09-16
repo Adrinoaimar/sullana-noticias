@@ -105,7 +105,7 @@ const imageMarkup = (article, className) => {
 const signalText = (value) => String(value || '').toLowerCase()
   .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   .replace(/[01345]/g, (character) => ({ '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's' })[character]);
-const SENSITIVE_TERMS = ['accidente', 'delito', 'fallec', 'muere', 'muerto', 'muerta', 'denuncia', 'emergencia', 'acusaci', 'acusan', 'asesin', 'muerte', 'politic', 'presidencial', 'electoral', 'eleccion', 'encuest', 'candidat', 'candidatur', 'votacion', 'voto', 'alcald', 'gobernador', 'regidor', 'proselit', 'gobierno', 'ministro', 'congreso', 'keiko', 'ideologi', 'crimen', 'matanz', 'secuest', 'extors', 'asalto', 'atraco', 'robo', 'robado', 'hurto', 'homicid', 'violencia', 'detenid', 'captur', 'fiscalia', 'policia', 'pnp', 'pelea', 'agresion', 'dispar', 'arma', 'herid', 'acusad', 'amenaz', 'cadaver', 'desaparec'];
+const SENSITIVE_TERMS = ['accidente', 'delito', 'fallec', 'muere', 'muerto', 'muerta', 'denuncia', 'emergencia', 'acusaci', 'acusan', 'asesin', 'parricid', 'muerte', 'politic', 'presidencial', 'electoral', 'eleccion', 'encuest', 'candidat', 'candidatur', 'votacion', 'voto', 'alcald', 'gobernador', 'regidor', 'proselit', 'gobierno', 'ministro', 'congreso', 'keiko', 'ideologi', 'crimen', 'matanz', 'secuest', 'extors', 'asalto', 'atraco', 'robo', 'robado', 'hurto', 'homicid', 'violencia', 'detenid', 'captur', 'fiscalia', 'policia', 'pnp', 'pelea', 'agresion', 'dispar', 'arma', 'herid', 'acusad', 'amenaz', 'cadaver', 'desaparec'];
 
 function sectionFor(value) {
   const text = signalText(value);
@@ -114,7 +114,7 @@ function sectionFor(value) {
   if (/asalto|asaltaron|asaltante|atraco|robo|robado|hurto|delincu|crimen|matanz|secuest|extors/.test(text)) return 'asaltos';
   if (/accidente|incendio|rescate|desaparec|emergencia|evacuaci|muere|muerto|muerta|fallec/.test(text)) return 'emergencias';
   if (/corte de agua|agua potable|luz electrica|alumbrado|pista|via publica|servicio/.test(text)) return 'servicios';
-  if (/asesin|homicid|violencia|detenid|capturad|denuncia|fiscalia|policia|\bpnp\b|pelea|agresion|dispar|arma|herid|acusad/.test(text)) return 'seguridad';
+  if (/asesin|parricid|homicid|violencia|detenid|capturad|denuncia|fiscalia|policia|\bpnp\b|pelea|agresion|dispar|arma|herid|acusad/.test(text)) return 'seguridad';
   return 'actualidad';
 }
 
