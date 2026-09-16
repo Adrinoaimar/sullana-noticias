@@ -248,6 +248,15 @@ function sitemap() {
   return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${escapeHtml(SITE_URL)}/</loc><changefreq>hourly</changefreq></url>${urls}</urlset>`;
 }
 
+function newsSitemap() {
+  const cutoff = Date.now() - 48 * 60 * 60 * 1000;
+  const urls = listArticles(db, 1000)
+    .filter((article) => Number.isFinite(new Date(article.published_at).getTime()) && new Date(article.published_at).getTime() >= cutoff)
+    .map((article) => `<url><loc>${escapeHtml(`${SITE_URL}/noticias/${article.slug}`)}</loc><news:news><news:publication><news:name>Sullana Noticias</news:name><news:language>es</news:language></news:publication><news:publication_date>${escapeHtml(new Date(article.published_at).toISOString())}</news:publication_date><news:title>${escapeHtml(article.title)}</news:title></news:news></url>`)
+    .join('');
+  return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">${urls}</urlset>`;
+}
+
 function rss() {
   const items = listArticles(db, 30).map((article) => `<item><title>${escapeHtml(article.title)}</title><link>${escapeHtml(`${SITE_URL}/noticias/${article.slug}`)}</link><guid isPermaLink="true">${escapeHtml(`${SITE_URL}/noticias/${article.slug}`)}</guid><description>${escapeHtml(article.dek || article.summary)}</description><pubDate>${new Date(article.published_at).toUTCString()}</pubDate></item>`).join('');
   return `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>Sullana Noticias</title><link>${escapeHtml(SITE_URL)}</link><description>Noticias locales de Sullana, Piura.</description>${items}</channel></rss>`;
@@ -350,8 +359,9 @@ async function handle(req, res) {
       return sendJson(res, 404, { error: 'NOT_FOUND' });
     }
     if (pathname === '/sitemap.xml') return send(res, 200, 'application/xml; charset=utf-8', sitemap(), { 'Cache-Control': 'public, max-age=300' });
+    if (pathname === '/news-sitemap.xml') return send(res, 200, 'application/xml; charset=utf-8', newsSitemap(), { 'Cache-Control': 'public, max-age=300' });
     if (pathname === '/rss.xml') return send(res, 200, 'application/rss+xml; charset=utf-8', rss(), { 'Cache-Control': 'public, max-age=300' });
-    if (pathname === '/robots.txt') return send(res, 200, 'text/plain; charset=utf-8', `User-agent: *\nAllow: /\nDisallow: /admin\nSitemap: ${SITE_URL}/sitemap.xml\n`);
+    if (pathname === '/robots.txt') return send(res, 200, 'text/plain; charset=utf-8', `User-agent: *\nAllow: /\nDisallow: /admin\nSitemap: ${SITE_URL}/sitemap.xml\nSitemap: ${SITE_URL}/news-sitemap.xml\n`);
     if (pathname === '/styles.css' || pathname === '/app.js' || pathname === '/admin.js') {
       const file = path.join(PUBLIC_DIR, pathname.slice(1));
       if (!file.startsWith(PUBLIC_DIR) || !fs.existsSync(file)) return send(res, 404, 'text/plain', 'Not found');

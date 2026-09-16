@@ -612,6 +612,16 @@ export default {
         }).join('');
         return text(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${home}${categories}${articleUrls}</urlset>`, 'application/xml; charset=utf-8', 200, { 'cache-control': 'public,max-age=300' });
       }
+      if (url.pathname === '/news-sitemap.xml') {
+        const articles = env.DB ? await dbRows(env.DB, `SELECT slug,title,published_at FROM articles WHERE datetime(published_at) >= datetime('now','-2 days') ORDER BY published_at DESC LIMIT 1000`) : [];
+        const base = originOf(request);
+        const entries = articles.map((item) => {
+          const published = isoDate(item.published_at);
+          if (!published) return '';
+          return `<url><loc>${esc(`${base}/noticias/${item.slug}`)}</loc><news:news><news:publication><news:name>Sullana Noticias</news:name><news:language>es</news:language></news:publication><news:publication_date>${esc(published)}</news:publication_date><news:title>${esc(item.title)}</news:title></news:news></url>`;
+        }).join('');
+        return text(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">${entries}</urlset>`, 'application/xml; charset=utf-8', 200, { 'cache-control': 'public,max-age=300' });
+      }
       if (url.pathname === '/rss.xml') {
         const articles = await articleRows(env, 30);
         const base = originOf(request);
@@ -626,7 +636,7 @@ export default {
         return text(`<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Sullana Noticias</title><link>${esc(base)}</link><atom:link href="${esc(`${base}/rss.xml`)}" rel="self" type="application/rss+xml"/><description>Noticias locales de Sullana, Piura.</description><lastBuildDate>${esc(buildDate)}</lastBuildDate>${items}</channel></rss>`, 'application/rss+xml; charset=utf-8', 200, { 'cache-control': 'public,max-age=300' });
       }
       if (url.pathname === '/og-default.svg') return text(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630"><rect width="1200" height="630" fill="#18312d"/><circle cx="1030" cy="100" r="260" fill="#e86f42"/><text x="90" y="250" fill="#fffefa" font-family="Georgia,serif" font-size="92" font-weight="700">Sullana</text><text x="90" y="355" fill="#fffefa" font-family="Georgia,serif" font-size="92" font-weight="700">Noticias</text><text x="94" y="425" fill="#d3dfd7" font-family="Arial,sans-serif" font-size="28">Información local · Piura</text></svg>`, 'image/svg+xml; charset=utf-8', 200, {'cache-control':'public,max-age=86400'});
-      if (url.pathname === '/robots.txt') return text(`User-agent: *\nAllow: /\nDisallow: /admin\nSitemap: ${originOf(request)}/sitemap.xml\n`);
+      if (url.pathname === '/robots.txt') return text(`User-agent: *\nAllow: /\nDisallow: /admin\nSitemap: ${originOf(request)}/sitemap.xml\nSitemap: ${originOf(request)}/news-sitemap.xml\n`);
       if (url.pathname === '/admin') return adminPage(env, request);
       if (url.pathname.startsWith('/noticias/')) return article(env, request, decodeURIComponent(url.pathname.slice('/noticias/'.length)));
       if (url.pathname === '/buscar') return search(env, request);
