@@ -1038,7 +1038,15 @@ class PlaywrightFacebookSourceAdapter:
                         if not more.is_visible():
                             continue
                         more.scroll_into_view_if_needed(timeout=1000)
-                        more.click(timeout=1500)
+                        try:
+                            more.click(timeout=1500)
+                        except Exception:
+                            # Facebook may report the visible control as
+                            # unstable/covered by its own feed layer. The
+                            # control is still a public, scoped "See more"
+                            # button; dispatch only that click event rather
+                            # than bypassing navigation or access controls.
+                            more.dispatch_event("click", timeout=1500)
                         if page is not None:
                             page.wait_for_timeout(900)
                         return True
