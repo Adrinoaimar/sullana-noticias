@@ -22,3 +22,7 @@ test('editorial copy preserves numeric dots inside a sentence', () => {
   assert.match(copy.body, /S\/1\.000 para adelantar la operación/);
   assert.doesNotMatch(copy.body, /S\/1\. El mismo reporte/);
 });
+
+test('editorial copy removes Facebook see-less control text', () => {
+  assert.equal(cleanSourceText('Texto público de la publicación. see less.'), 'Texto público de la publicación.');
+});

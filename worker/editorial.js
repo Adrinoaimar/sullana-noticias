@@ -22,6 +22,7 @@ export function cleanSourceText(value) {
     .filter(Boolean)
     .join(' ')
     .replace(UI_TAIL, '')
+    .replace(/\s+(?:see less|ver menos)\.?$/i, '')
     .replace(/\s+(?:…|\.\.\.)\s*$/, '')
     .trim();
 }
