@@ -398,19 +398,26 @@ async function refreshUneditedEditorial(db) {
     WHERE (d.summary=r.text AND d.body=r.text)
        OR d.body LIKE '%El mismo reporte agrega que%'
        OR a.body LIKE '%El mismo reporte agrega que%'
+       OR r.text LIKE '%see less%'
+       OR r.text LIKE '%ver menos%'
+       OR d.body LIKE '%see less%'
+       OR d.body LIKE '%ver menos%'
+       OR a.body LIKE '%see less%'
+       OR a.body LIKE '%ver menos%'
     ORDER BY d.id ASC LIMIT 200`);
   let refreshed = 0;
   for (const item of rows) {
     const untouched = String(item.draft_body || '') === String(item.text || '') && String(item.draft_summary || '') === String(item.text || '');
     const legacyDraft = String(item.draft_body || '').includes('El mismo reporte agrega que');
     const legacyArticle = String(item.article_body || '').includes('El mismo reporte agrega que');
-    if (!untouched && !legacyDraft && !legacyArticle) continue;
+    const facebookControl = /\b(?:see less|ver menos)\.?/i.test(`${item.text} ${item.draft_body} ${item.article_body}`);
+    if (!untouched && !legacyDraft && !legacyArticle && !facebookControl) continue;
     const editorial = buildEditorialCopy(item.text, item.source_name);
     if (!editorial.body) continue;
-    if (untouched || legacyDraft) {
+    if (untouched || legacyDraft || facebookControl) {
       await dbRun(db, 'UPDATE news_drafts SET dek=?,summary=?,body=?,meta_description=?,updated_at=? WHERE id=?', editorial.summary, editorial.summary, editorial.body, editorial.metaDescription, now(), item.id);
     }
-    if (untouched || legacyArticle) {
+    if (untouched || legacyArticle || facebookControl) {
       await dbRun(db, `UPDATE articles SET dek=?,summary=?,body=?,meta_description=?,modified_at=?
         WHERE draft_id=?${untouched ? ' AND summary=? AND body=?' : ''}`, ...(untouched
         ? [editorial.summary, editorial.summary, editorial.body, editorial.metaDescription, now(), item.id, item.text, item.text]
