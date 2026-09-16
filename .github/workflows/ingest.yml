@@ -1,6 +1,9 @@
 name: Sullana Noticias · ingesta pública
 
 on:
+  push:
+    branches:
+      - probe/muni-sullana
   workflow_call:
     inputs:
       scope:
@@ -54,8 +57,8 @@ jobs:
           SULLANA_INGEST_URL: ${{ secrets.SULLANA_INGEST_URL }}
           SULLANA_INGEST_TOKEN: ${{ secrets.SULLANA_INGEST_TOKEN }}
           FACEBOOK_STORAGE_STATE_B64: ${{ secrets.FACEBOOK_STORAGE_STATE_B64 }}
-          SULLANA_SCOPE: ${{ inputs.scope || 'all' }}
-          SULLANA_PUBLISH_SAFE: ${{ github.event_name == 'schedule' && 'true' || inputs.publish_safe }}
+          SULLANA_SCOPE: ${{ github.ref == 'refs/heads/probe/muni-sullana' && 'muni-sullana' || inputs.scope || 'all' }}
+          SULLANA_PUBLISH_SAFE: ${{ github.ref == 'refs/heads/probe/muni-sullana' && 'true' || (github.event_name == 'schedule' && 'true' || inputs.publish_safe) }}
         run: |
           # The anonymous public feed exposes the newest readable post more
           # consistently in headless Chromium; no login or access-control
