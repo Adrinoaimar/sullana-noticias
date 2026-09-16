@@ -619,7 +619,12 @@ export default {
         if (!await authorizedIngest(request, env)) return json({ error: 'INGEST_AUTH_REQUIRED' }, 401);
         if (!env.DB) return json({ error: 'DATABASE_NOT_CONFIGURED' }, 503);
         await seed(env.DB);
-        const sources = await dbRows(env.DB, "SELECT id, name, facebook_url, facebook_identifier FROM sources WHERE enabled=1 ORDER BY id");
+        const sources = await dbRows(env.DB, `SELECT id, name, facebook_url, facebook_identifier
+          FROM sources
+          WHERE enabled=1
+             OR (enabled=0 AND pause_reason='SCRAPER_ERROR'
+                 AND (last_checked_at IS NULL OR datetime(last_checked_at) <= datetime('now','-30 minutes')))
+          ORDER BY id`);
         return json({ sources }, 200, { 'cache-control': 'no-store' });
       }
       if (url.pathname === '/api/auth/login' && request.method === 'POST') {
