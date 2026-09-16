@@ -530,7 +530,7 @@ async function persistIngest(env, payload, requestOrigin) {
   let safePublication = null;
   if (payload.publish_safe === true) {
     try {
-      safePublication = await publishSafeDrafts(db, requestOrigin, { recentTrustedOnly: true, eventName: 'scheduled_safe_publish' });
+      safePublication = await publishSafeDrafts(db, requestOrigin, { recentTrustedOnly: false, eventName: 'scheduled_safe_publish' });
     } catch (error) {
       console.error('scheduled_safe_publish', error.message);
       safePublication = { candidates: 0, published: 0, already_published: 0, skipped: 0, failed: 1 };
