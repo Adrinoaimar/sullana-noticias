@@ -104,7 +104,7 @@ const imageMarkup = (article, className) => {
 
 const signalText = (value) => String(value || '').toLowerCase()
   .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-  .replace(/[01345]/g, (character) => ({ '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's' })[character]);
+  .replace(/[013456]/g, (character) => ({ '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '6': 'o' })[character]);
 const SENSITIVE_TERMS = ['accidente', 'delito', 'fallec', 'muere', 'muerto', 'muerta', 'denuncia', 'emergencia', 'acusaci', 'acusan', 'asesin', 'parricid', 'muerte', 'politic', 'presidencial', 'electoral', 'eleccion', 'encuest', 'candidat', 'candidatur', 'votacion', 'voto', 'alcald', 'gobernador', 'regidor', 'proselit', 'gobierno', 'ministro', 'congreso', 'keiko', 'ideologi', 'crimen', 'matanz', 'secuest', 'extors', 'asalto', 'atraco', 'robo', 'robado', 'hurto', 'homicid', 'violencia', 'detenid', 'captur', 'fiscalia', 'policia', 'pnp', 'pelea', 'agresion', 'dispar', 'arma', 'herid', 'acusad', 'amenaz', 'cadaver', 'desaparec'];
 
 function sectionFor(value) {
