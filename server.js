@@ -240,7 +240,7 @@ function startIngest() {
 
 function dashboard() {
   const count = (table, where = '') => db.prepare(`SELECT COUNT(*) AS total FROM ${table} ${where}`).get().total;
-  return { visits_today: count('events', "WHERE event_name = 'article_view' AND date(created_at) = date('now')"), articles_today: count('articles', "WHERE date(published_at) = date('now')"), sources_enabled: count('sources', 'WHERE enabled = 1'), posts_detected: count('raw_posts'), drafts: count('news_drafts', "WHERE editorial_status = 'DRAFT'"), published: count('articles'), last_scrape: db.prepare('SELECT * FROM scrape_runs ORDER BY started_at DESC LIMIT 1').get() || null };
+  return { visits_today: count('events', "WHERE event_name = 'article_view' AND date(created_at) = date('now')"), sessions_today: count('events', "WHERE event_name = 'site_visit' AND date(created_at) = date('now')"), articles_today: count('articles', "WHERE date(published_at) = date('now')"), sources_enabled: count('sources', 'WHERE enabled = 1'), posts_detected: count('raw_posts'), drafts: count('news_drafts', "WHERE editorial_status = 'DRAFT'"), published: count('articles'), last_scrape: db.prepare('SELECT * FROM scrape_runs ORDER BY started_at DESC LIMIT 1').get() || null };
 }
 
 function sitemap() {
@@ -294,7 +294,7 @@ async function handle(req, res) {
     }
     if (pathname === '/api/events' && req.method === 'POST') {
       const body = await readBody(req);
-      const allowed = new Set(['share_click', 'copy_link', 'whatsapp_share', 'facebook_share', 'newsletter_click', 'editor_login']);
+      const allowed = new Set(['share_click', 'copy_link', 'whatsapp_share', 'facebook_share', 'newsletter_click', 'editor_login', 'site_visit']);
       const eventName = String(body.event_name || '');
       if (!allowed.has(eventName)) return sendJson(res, 400, { error: 'EVENT_NOT_ALLOWED' });
       const metadata = typeof body.metadata === 'object' && body.metadata ? body.metadata : {};

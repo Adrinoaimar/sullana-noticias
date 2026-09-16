@@ -3,6 +3,17 @@
     if (typeof window.gtag === 'function') window.gtag('event', eventName, metadata);
     fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_name: eventName, metadata }) }).catch(() => {});
   };
+  if (!location.pathname.startsWith('/admin')) {
+    try {
+      const key = `sn_site_visit_${new Date().toISOString().slice(0, 10)}`;
+      if (!sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, '1');
+        track('site_visit', { path: location.pathname, scope: 'session' });
+      }
+    } catch {
+      track('site_visit', { path: location.pathname, scope: 'session' });
+    }
+  }
   const buttons = document.querySelectorAll('[data-share]');
   for (const button of buttons) {
     button.addEventListener('click', async () => {
@@ -37,7 +48,7 @@
   const showApp = () => { loginPanel.hidden = true; adminApp.hidden = false; logoutButton.hidden = false; loadAdmin(); };
   async function loadAdmin() {
     const [dashboard, sources, rawPosts, drafts] = await Promise.all([api('/api/admin/dashboard'), api('/api/admin/sources'), api('/api/admin/raw-posts'), api('/api/admin/drafts')]);
-    document.querySelector('#dashboard-cards').innerHTML = [['Visitas hoy', dashboard.visits_today], ['Artículos hoy', dashboard.articles_today], ['Posts detectados', dashboard.posts_detected], ['Borradores', dashboard.drafts]].map(([label, value]) => `<div class="metric"><small>${esc(label)}</small><strong>${esc(value)}</strong></div>`).join('');
+    document.querySelector('#dashboard-cards').innerHTML = [['Sesiones hoy', dashboard.sessions_today ?? 0], ['Lecturas hoy', dashboard.visits_today], ['Artículos hoy', dashboard.articles_today], ['Posts detectados', dashboard.posts_detected], ['Borradores', dashboard.drafts]].map(([label, value]) => `<div class="metric"><small>${esc(label)}</small><strong>${esc(value)}</strong></div>`).join('');
     document.querySelector('#sources-list').innerHTML = sources.length ? sources.map((source) => `<div class="admin-item"><div class="admin-item__top"><h3>${esc(source.name)}</h3><span class="badge ${source.enabled ? '' : 'badge--warn'}">${source.enabled ? 'Activa' : 'Pausada'}</span></div><p>${esc(source.facebook_url)}<br>Última revisión: ${esc(date(source.last_checked_at))}</p><button class="button button--small" data-toggle-source="${esc(source.id)}" data-enabled="${esc(source.enabled ? 0 : 1)}">${source.enabled ? 'Pausar' : 'Activar'}</button></div>`).join('') : '<p>No hay fuentes configuradas.</p>';
     document.querySelector('#raw-posts-list').innerHTML = rawPosts.length ? rawPosts.slice(0, 12).map((post) => `<div class="admin-item"><div class="admin-item__top"><h3>${esc(post.source_name)}</h3><span class="badge ${post.processing_status === 'VERIFY' ? 'badge--warn' : ''}">${esc(post.processing_status)}</span></div><p>${esc((post.text || '').slice(0, 180))}<br>${esc(date(post.published_at || post.fetched_at))}</p>${post.processing_status !== 'DRAFTED' && post.processing_status !== 'PUBLISHED' && post.processing_status !== 'REJECTED' ? `<button class="button button--small" data-create-draft="${esc(post.id)}">Crear borrador</button> <button class="button button--small" data-reject-post="${esc(post.id)}">Descartar</button>` : ''}</div>`).join('') : '<p>No hay posts detectados. Ejecuta una revisión.</p>';
     document.querySelector('#drafts-list').innerHTML = drafts.length ? drafts.map((draft) => `<div class="admin-item"><div class="admin-item__top"><h3>${esc(draft.title)}</h3><span class="badge ${draft.verification_status === 'VERIFY' ? 'badge--warn' : ''}">${esc(draft.editorial_status)} · ${esc(draft.verification_status)}</span></div><p>${esc(draft.dek)}<br>Fuente: ${esc(draft.source_name)}</p>${draft.editorial_status === 'DRAFT' ? `<button class="button button--small" data-publish-draft="${esc(draft.id)}">${draft.verification_status === 'VERIFY' ? 'Confirmar y publicar' : 'Publicar'}</button>` : `<a class="text-link" href="/noticias/${encodeURIComponent(draft.slug)}">Ver artículo ↗</a>`}</div>`).join('') : '<p>No hay borradores. Los posts relevantes aparecerán aquí.</p>';
