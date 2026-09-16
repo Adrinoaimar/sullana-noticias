@@ -52,6 +52,8 @@ const rfc822Date = (value) => {
 const dbRows = async (db, sql, ...values) => (await db.prepare(sql).bind(...values).all()).results || [];
 const dbFirst = async (db, sql, ...values) => (await db.prepare(sql).bind(...values).first()) || null;
 const dbRun = async (db, sql, ...values) => db.prepare(sql).bind(...values).run();
+export const DEPRECATED_SOURCE_SQL = `UPDATE sources SET enabled=0, pause_reason='MANUAL', last_checked_at=?
+  WHERE sources.facebook_identifier=? AND EXISTS (SELECT 1 FROM sources AS canonical WHERE canonical.facebook_identifier=? AND canonical.id != sources.id)`;
 const bodyJson = async (request) => { try { return await request.json(); } catch { return {}; } };
 const publicMediaUrl = (value) => {
   try {
@@ -199,8 +201,7 @@ async function seed(db) {
     ['Municipalidad Distrital de Veintiséis de Octubre', 'https://www.facebook.com/MunicipioVeintiseisDeOctubre/', 'MunicipioVeintiseisDeOctubre', 'OFFICIAL', 1],
   ];
   for (const source of sources) await dbRun(db, 'INSERT OR IGNORE INTO sources (name, facebook_url, facebook_identifier, trust_level, enabled, auto_draft, auto_publish) VALUES (?, ?, ?, ?, ?, 1, 0)', ...source);
-  await dbRun(db, `UPDATE sources SET enabled=0, pause_reason='MANUAL', last_checked_at=?
-    WHERE facebook_identifier=? AND EXISTS (SELECT 1 FROM sources WHERE facebook_identifier=? AND id != sources.id)`, now(), 'muni.castilla.3', 'MuniCastillaPiura');
+  await dbRun(db, DEPRECATED_SOURCE_SQL, now(), 'muni.castilla.3', 'MuniCastillaPiura');
   await dbRun(db, `UPDATE sources SET facebook_url=?, enabled=1, pause_reason='NONE', last_checked_at=NULL
     WHERE facebook_identifier=?`, 'https://www.facebook.com/MuniCastillaPiura/', 'MuniCastillaPiura');
   await dbRun(db, "UPDATE sources SET pause_reason='SCRAPER_ERROR' WHERE enabled=0 AND trust_level='TRUSTED_MEDIA' AND last_success_at IS NULL AND pause_reason='NONE'");
