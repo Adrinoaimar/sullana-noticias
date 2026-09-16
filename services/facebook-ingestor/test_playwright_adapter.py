@@ -144,6 +144,30 @@ class PlaywrightTextExtractionTests(unittest.TestCase):
         text = MODULE.PlaywrightFacebookSourceAdapter._text_from_lines(lines, 0, "El Chilalo Noticias")
         self.assertEqual(text, "Texto principal de la publicación pública.")
 
+    def test_feed_text_stops_before_page_chrome(self):
+        lines = [
+            "1h",
+            "Page · Government organization Plaza Miguel Grau S/N - Marcavelica",
+            "munimarcavelica@munimarcavelica.gob.pe",
+            "Like",
+            "Comment",
+            "Share",
+        ]
+        text = MODULE.PlaywrightFacebookSourceAdapter._text_from_lines(lines, 0, "Municipalidad Distrital de Marcavelica")
+        self.assertEqual(text, "")
+
+    def test_feed_text_keeps_caption_before_page_chrome(self):
+        lines = [
+            "1h",
+            "Texto visible de la publicación pública.",
+            "Log In Forgot Account",
+            "Like",
+            "Comment",
+            "Share",
+        ]
+        text = MODULE.PlaywrightFacebookSourceAdapter._text_from_lines(lines, 0, "El Chilalo Noticias")
+        self.assertEqual(text, "Texto visible de la publicación pública.")
+
     def test_video_text_stops_at_next_source_metadata(self):
         lines = [
             "#Sullana",
