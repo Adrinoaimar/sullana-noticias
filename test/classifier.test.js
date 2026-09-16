@@ -21,3 +21,12 @@ test('political government references require verification', () => {
   assert.equal(result.sensitive, true);
   assert.equal(result.status, 'VERIFY');
 });
+
+test('parricide reports use the security section and require verification', () => {
+  const result = classify('En vivo: intento de parricidio reportado en Jesús María de Sullana.', {
+    trust_level: 'TRUSTED_MEDIA',
+  });
+  assert.equal(result.category_slug, 'seguridad');
+  assert.equal(result.sensitive, true);
+  assert.equal(result.status, 'VERIFY');
+});
