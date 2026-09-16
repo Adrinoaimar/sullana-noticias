@@ -102,6 +102,12 @@ _PLAYBACK_ERROR_FRAGMENT = re.compile(
     r"\s*(?:learn more|más información)?\s*$",
     re.I,
 )
+_FACEBOOK_CHROME_LINE = re.compile(
+    r"^(?:page\s*[·•]\s*(?:government organization|organización gubernamental)\b.*|"
+    r"log\s+in(?:\s+forgot\s+account)?|"
+    r"online status indicator\s+active\b.*)$",
+    re.I,
+)
 _NON_CONTENT_IMAGE_ALT = re.compile(
     r"(?:emoji|sticker|reaction|newsfeed|profile|perfil|avatar|logo|icon|ícono|icono|cover|portada)",
     re.I,
@@ -116,6 +122,11 @@ def _strip_playback_error(value: str) -> str:
     """Remove Facebook's visible player error suffix without changing captions."""
     cleaned = _clean_line(value)
     return _PLAYBACK_ERROR_FRAGMENT.sub("", cleaned).strip()
+
+
+def _is_facebook_chrome_line(value: str) -> bool:
+    """Identify page-level Facebook UI that leaked into a public card."""
+    return bool(_FACEBOOK_CHROME_LINE.fullmatch(_clean_line(value)))
 
 
 def _text_signature(value: str) -> set[str]:
@@ -340,6 +351,11 @@ class PlaywrightFacebookSourceAdapter:
                 if line:
                     content.append(line)
                 break
+            if _is_facebook_chrome_line(line):
+                # Facebook sometimes renders page metadata or its login
+                # affordance inside the same public wrapper. It is not post
+                # text, so stop before it can become a title or summary.
+                break
             if lowered in _STOP_LINES or re.search(r"(?:all\s+reactions|todas\s+las\s+reacciones|reacciones)", lowered):
                 break
             if content and line == page_name:
@@ -500,6 +516,8 @@ class PlaywrightFacebookSourceAdapter:
             if lowered in _STOP_LINES or lowered.startswith(("like comment share", "me gusta comentar compartir")):
                 break
             if content and page_name and line == page_name:
+                break
+            if _is_facebook_chrome_line(line):
                 break
             if re.fullmatch(r"(?:related|recommended)\s+(?:reels|videos)", lowered):
                 break
