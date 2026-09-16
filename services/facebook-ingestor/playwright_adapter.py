@@ -356,7 +356,7 @@ class PlaywrightFacebookSourceAdapter:
                 # affordance inside the same public wrapper. It is not post
                 # text, so stop before it can become a title or summary.
                 break
-            if lowered in _STOP_LINES or re.search(r"(?:all\s+reactions|todas\s+las\s+reacciones|reacciones)", lowered):
+            if lowered in _STOP_LINES or re.fullmatch(r"(?:see less|ver menos)\.?", lowered) or re.search(r"(?:all\s+reactions|todas\s+las\s+reacciones|reacciones)", lowered):
                 break
             if content and line == page_name:
                 break
@@ -513,7 +513,7 @@ class PlaywrightFacebookSourceAdapter:
             lowered = line.lower()
             if original_line and not line:
                 break
-            if lowered in _STOP_LINES or lowered.startswith(("like comment share", "me gusta comentar compartir")):
+            if lowered in _STOP_LINES or re.fullmatch(r"(?:see less|ver menos)\.?", lowered) or lowered.startswith(("like comment share", "me gusta comentar compartir")):
                 break
             if content and page_name and line == page_name:
                 break

@@ -116,6 +116,18 @@ class PlaywrightTextExtractionTests(unittest.TestCase):
         text = MODULE.PlaywrightFacebookSourceAdapter._text_from_lines(lines, 0, "El Chilalo Noticias")
         self.assertEqual(text, "[AVISO] Se vienen los talleres productivos")
 
+    def test_feed_text_stops_before_punctuation_on_see_less_control(self):
+        lines = [
+            "1h",
+            "Texto público de la publicación.",
+            "See less.",
+            "Like",
+            "Comment",
+            "Share",
+        ]
+        text = MODULE.PlaywrightFacebookSourceAdapter._text_from_lines(lines, 0, "El Chilalo Noticias")
+        self.assertEqual(text, "Texto público de la publicación.")
+
     def test_video_text_stops_before_related_content(self):
         lines = [
             "0:29 / 1:00",
