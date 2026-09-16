@@ -21,6 +21,7 @@ on:
         options:
           - all
           - chilalo-churre
+          - muni-sullana
       publish_safe:
         description: "Publicar automáticamente solo contenido no sensible"
         required: false
@@ -92,6 +93,9 @@ jobs:
               sources = remote_sources
           if os.environ.get("SULLANA_SCOPE") == "chilalo-churre":
               focus = {"ElChilaloNoticias", "elchurrenoticiasoficialsullana"}
+              sources = [source for source in sources if source.get("facebook_identifier") in focus]
+          elif os.environ.get("SULLANA_SCOPE") == "muni-sullana":
+              focus = {"MuniSullana"}
               sources = [source for source in sources if source.get("facebook_identifier") in focus]
           request = {"sources": sources, "page_limit": 8, "timeout": 25, "retries": 2, "min_interval": 30, "scroll_limit": 5, "max_workers": 2}
           run = subprocess.run([sys.executable, "services/facebook-ingestor/run.py"], input=json.dumps(request), text=True, capture_output=True, check=False)
