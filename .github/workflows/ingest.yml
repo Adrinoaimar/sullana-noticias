@@ -105,7 +105,7 @@ jobs:
               raise SystemExit(run.stderr or "adapter returned no JSON")
           payload = json.loads(run.stdout)
           publish_safe = os.environ.get("SULLANA_PUBLISH_SAFE", "true").strip().lower() not in {"0", "false", "no"}
-          political_terms = ("gobierno", "keiko", "ideologi", "congreso", "ministro", "president", "presidencia", "electoral", "eleccion", "candidat", "encuest", "votacion", "voto", "alcald", "gobernador", "regidor", "proselit", "partido politico")
+          political_terms = ("gobierno", "keiko", "ideologi", "congreso", "ministro", "president", "presidencia", "electoral", "eleccion", "candidat", "encuest", "votacion", "voto", "alcald", "gobernador", "regidor", "proselit", "partido politico", "somos peru", "peru libre", "fuerza popular", "accion popular", "alianza para el progreso", "avanza pais", "renovacion popular", "podemos peru", "juntos por el peru")
           def signal_text(value):
               return "".join(character for character in unicodedata.normalize("NFD", str(value).lower()) if not unicodedata.combining(character))
           political_hits = sorted({term for post in payload.get("posts", []) for term in political_terms if term in signal_text(post.get("text", ""))})

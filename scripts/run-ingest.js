@@ -7,10 +7,11 @@ const terms = ['sullana', 'bellavista', 'marcavelica', 'querecotillo', 'lancones
 const signalText = (value) => String(value || '').toLowerCase()
   .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   .replace(/[01345]/g, (character) => ({ '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's' })[character]);
-const sensitive = ['accidente', 'delito', 'fallec', 'muere', 'muerto', 'muerta', 'denuncia', 'emergencia', 'acusaci', 'acusan', 'asesin', 'muerte', 'politica', 'crimen', 'matanz', 'secuest', 'extors', 'asalto', 'atraco', 'robo', 'robado', 'hurto', 'homicid', 'violencia', 'detenid', 'captur', 'fiscalia', 'policia', 'pnp', 'pelea', 'agresion', 'dispar', 'arma', 'herid', 'acusad', 'amenaz', 'cadaver', 'desaparec'];
+const sensitive = ['accidente', 'delito', 'fallec', 'muere', 'muerto', 'muerta', 'denuncia', 'emergencia', 'acusaci', 'acusan', 'asesin', 'muerte', 'politica', 'electoral', 'eleccion', 'encuest', 'candidat', 'votacion', 'voto', 'alcald', 'gobernador', 'regidor', 'gobierno', 'ministro', 'congreso', 'keiko', 'somos peru', 'peru libre', 'fuerza popular', 'accion popular', 'alianza para el progreso', 'avanza pais', 'renovacion popular', 'podemos peru', 'juntos por el peru', 'partido politico', 'crimen', 'matanz', 'secuest', 'extors', 'asalto', 'atraco', 'robo', 'robado', 'hurto', 'homicid', 'violencia', 'detenid', 'captur', 'fiscalia', 'policia', 'pnp', 'pelea', 'agresion', 'dispar', 'arma', 'herid', 'acusad', 'amenaz', 'cadaver', 'desaparec'];
 const sectionFor = (text) => {
   const normalized = signalText(text);
   if (/\bpresident(?:e|a)\b|presidencia|palacio de gobierno|ejecutivo nacional|congreso|ministro/.test(normalized)) return 'presidencia';
+  if (/electoral|eleccion|encuest|candidat|candidatur|votacion|\bvoto\b|alcald|gobernador|regidor|partido politico|somos peru|peru libre|fuerza popular|accion popular|alianza para el progreso|avanza pais|renovacion popular|podemos peru|juntos por el peru|proselit|gobierno|keiko|ideologi/.test(normalized)) return 'politica-local';
   if (/asalto|asaltaron|asaltante|atraco|robo|robado|hurto|delincu|crimen|matanz|secuest|extors/.test(normalized)) return 'asaltos';
   if (/accidente|incendio|rescate|desaparec|emergencia|evacuaci/.test(normalized)) return 'emergencias';
   if (/corte de agua|agua potable|luz electrica|alumbrado|pista|via publica|servicio/.test(normalized)) return 'servicios';
