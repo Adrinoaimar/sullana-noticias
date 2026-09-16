@@ -30,3 +30,12 @@ test('parricide reports use the security section and require verification', () =
   assert.equal(result.sensitive, true);
   assert.equal(result.status, 'VERIFY');
 });
+
+test('common Facebook number masking keeps violent reports under review', () => {
+  const result = classify('Videos muestran vi6lencia entre alumn6s en Bellavista.', {
+    trust_level: 'TRUSTED_MEDIA',
+  });
+  assert.equal(result.category_slug, 'seguridad');
+  assert.equal(result.sensitive, true);
+  assert.equal(result.status, 'VERIFY');
+});
